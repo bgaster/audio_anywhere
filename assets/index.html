@@ -1,0 +1,146 @@
+<!doctype html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href='https://fonts.googleapis.com/css?family=Orbitron' rel='stylesheet'>
+
+    <style type="text/css">
+        div {
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10+ and Edge */
+            user-select: none; /* Standard syntax */
+        }
+        
+        .header {
+            top: 0;
+            background: #555;
+            color: #f1f1f1;
+          }
+          
+          /* Page content */
+          .content {
+            padding: 16px;
+          }
+          
+          /* The sticky class is added to the header with JS when it reaches its scroll position */
+          .sticky {
+            position: fixed;
+            top: 0;
+            padding:0;
+            width: 100%
+          }
+          
+          /* Add some top padding to the page content to prevent sudden quick movement (as the header gets a new position at the top of the page (position:fixed and top:0) */
+          .sticky + .content {
+            padding-top: 102px;
+          }
+
+
+        body {
+            font-family: Orbitron;
+            text-align: center;
+            background-color: black;
+            margin: 0;
+            padding: 0;
+        }
+
+        .audioanywhere {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 */
+	        padding-top: 25px;
+        }
+
+        
+    </style>
+    <link rel="stylesheet" type="text/css" href="http://127.0.0.1:8000/css/semantic.min.css">
+    <!-- <script src="https://g200kg.github.io/webaudio-controls/webaudio-controls.js" ></script> -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src = "http://127.0.0.1:8000/js/support.js"></script>
+    <script src = "http://127.0.0.1:8000/js/semantic.min.js"></script>
+
+    <script>
+        
+    </script>
+    
+</head>
+    <body>
+        <div class="header sticky" id="aaHeader">
+            <div class="ui vertical menu">
+                <div class="ui dropdown item">
+                  Modules
+                  <i class="dropdown icon"></i>
+                  <div class="menu">
+                    <a class="item" data-value="/gain/gain.json">Gain</a>
+                    <a class="item" data-value="/sine/sine.json">Sine</a>
+                    <a class="item" data-value="/default/default.json">Default</a>
+                  </div>
+                </div>
+            </div>
+        </div>
+        <div class="content">
+            <div class="audioanywhere">
+                <div id="module"></div>
+            </div>
+        </div>
+        
+
+        <script>
+            var change_module = 2;
+
+            function genIFrame(url, width, height) {
+                let h = "<iframe src=\"" + url + "\" style=\"height: " + height + "px; width: " + width + "px; border: none;\"><iframe>";
+                return h;
+            }
+            
+            function OnModuleChange(url, width, height) {
+                var contentDiv = document.getElementById("module");
+                var fragmentId = location.hash.substr(1);
+                contentDiv.innerHTML = genIFrame(url, width, height);  
+            }
+            
+            window.onload = function() {
+                console.log = console.error = (str) => {
+                    sendMsg(console_msg, 0, str);
+                }
+                // install default module...
+                OnModuleChange("http://127.0.0.1:8000/$gui_page$", $width$, $height$);
+
+                $('.ui.dropdown').dropdown({
+                    onChange: (value, text, $selectedItem) => {
+                        sendMsg(change_module, 0, value);
+                        //console.log(control_change);
+                        //console.log(typeof value);
+                        //if (value == "sine") {
+                            //console.log("may");
+                        //    
+                        //}
+                        //console.log(value);
+                    },
+                    on: "hover"
+                });
+            }
+
+            window.onscroll = function() {
+                handleSticky()
+            };
+    
+            // Get the header
+            var header = document.getElementById("aaHeader");
+    
+            // Get the offset position of the navbar
+            var sticky = header.offsetTop;
+    
+            // Add the sticky class to the header when you reach its scroll position. Remove "sticky" when you leave the scroll position
+            function handleSticky() {
+                if (window.pageYOffset > sticky) {
+                    header.classList.add("sticky");
+                } else {
+                    header.classList.remove("sticky");
+                }
+            } 
+        </script>
+    </body>
+</html>
