@@ -58,9 +58,13 @@ impl <'a>Standalone<'a> {
                 Box::new(LocalSendCB::new(send_from_gui)),
                 bundle.gui.params.clone(), //vec![Value::VFloat(-50.)],
                 "Audio Anywhere",
-                (600,600)).and_then(|gui| {
-                    let comms = gui.comms();
+                (900,900)).and_then(|gui| {
+                    
                     let comms_sender = gui.comms_sender();
+                    let comms = gui.comms();
+                    
+                    // send Audio devices to GUI
+                    Self::send_audio_devices(&comms_sender);
                     // set default values for GUI and AAUnit
                     Self::send_params(&comms_sender, &bundle.gui.params);
                     Self::set_params(&aaunit, &bundle.gui.params);
@@ -78,6 +82,23 @@ impl <'a>Standalone<'a> {
         })
     }
 
+    fn send_audio_devices(comms: &Sender<Message>) {
+        let pa = pa::PortAudio::new().unwrap();
+        for device in pa.devices().unwrap() {
+            let (index, info) = device.unwrap();
+            // println!("--------------------------------------- {:?}", index);
+            // println!("{:#?}", &info);
+            
+            if info.max_input_channels > 0 {
+                Self::send_add_input_device(&comms, info.name, index);
+            }
+
+            if info.max_output_channels > 0 {
+                Self::send_add_output_device(&comms, info.name, index);
+            }
+        }
+    }
+
     // send a list of params settings, indexed by position in the vector, to GUI
     fn send_params(comms: &Sender<Message>, params: &Vec<Value>) {
         for (index, p) in params.iter().enumerate() {
@@ -87,6 +108,22 @@ impl <'a>Standalone<'a> {
                 value: (*p).clone(),
             }).unwrap();
         }
+    }
+
+    fn send_add_input_device(comms: &Sender<Message>, name: &str, index: pa::DeviceIndex) {
+        comms.send(Message {
+            id: MessageID::AddInputDevice,
+            index: 0,
+            value: Value::VString([name, &index.0.to_string()].join("="))
+        }).unwrap();
+    }
+
+    fn send_add_output_device(comms: &Sender<Message>, name: &str, index: pa::DeviceIndex) {
+        comms.send(Message {
+            id: MessageID::AddOutputDevice,
+            index: 0,
+            value: Value::VString([name, &index.0.to_string()].join("="))
+        }).unwrap();
     }
 
     /// create an instance of an aaunit
@@ -126,22 +163,30 @@ impl <'a>Standalone<'a> {
 
     fn audio(
         aaunit: AAUnit, 
-        url: String, 
+        bundle: Bundle, 
         receive_from_gui: cb::Receiver<Message>, 
         send_from_audio: Sender<(u32, Value)>) -> Option<String> {
         let pa = pa::PortAudio::new().unwrap();
 
         const TABLE_SIZE: usize = 200;
 
-        let mut sine = [0.0; TABLE_SIZE];
-        for i in 0..TABLE_SIZE {
-            sine[i] = (i as f64 / TABLE_SIZE as f64 * PI * 2.0).sin() as f32;
-        }
-        let mut left_phase = 0;
-        let mut right_phase = 0;
+        let input_params = pa::stream::Parameters::new(
+            pa::DeviceIndex(1), 
+            bundle.info.inputs,
+            true,
+            0.1);
 
-        let mut settings =
-            pa.default_duplex_stream_settings(1, 1, 44_100.0, 64).unwrap();
+        let output_params = pa::stream::Parameters::new(
+            pa::DeviceIndex(3), 
+            bundle.info.outputs,
+            true,
+            0.1);
+
+        let mut settings = 
+            pa::stream::DuplexSettings::new(input_params, output_params, 44_100.0, 64);
+
+        // let mut settings =
+        //     pa.default_duplex_stream_settings(1, 1, 44_100.0, 64).unwrap();
 
         // we won't output out of range samples so don't bother clipping them.
         settings.flags = pa::stream_flags::CLIP_OFF;
@@ -170,6 +215,15 @@ impl <'a>Standalone<'a> {
                                     return pa::Complete;
                                 }
                             },
+                            MessageID::AddInputDevice => {
+
+                            },
+                            MessageID::AddOutputDevice => {
+
+                            },
+                            _ => {
+
+                            }
                         }
                     }
                     else {
@@ -177,24 +231,8 @@ impl <'a>Standalone<'a> {
                     }
                 }                                                
 
-                let mut idx = 0;
-                for _ in 0..frames {
-                    let foo: f32 = in_buffer[idx];
-                    input[idx] = sine[left_phase];
-                    //buffer[idx + 1] = sine[right_phase];
-                    left_phase += 1;
-                    if left_phase >= TABLE_SIZE {
-                        left_phase -= TABLE_SIZE;
-                    }
-                    right_phase += 3;
-                    if right_phase >= TABLE_SIZE {
-                        right_phase -= TABLE_SIZE;
-                    }
-                    idx += 1;
-                }
-
                 unsafe { 
-                    LEFT_INPUT_MEMORY_BUFFER = &input[0]; //&in_buffer[0];
+                    LEFT_INPUT_MEMORY_BUFFER = &in_buffer[0]; //&input[0]; //
                     LEFT_MEMORY_BUFFER = &mut out_buffer[0]; 
                 }
 
@@ -226,12 +264,13 @@ impl <'a>Standalone<'a> {
         let receive_from_gui = self.receive_from_gui;
         let send_from_audio = self.send_from_audio;
         let comms = self.comms_sender;
+        let bundle = self.bundle;
 
         let _audio_thread = thread::spawn(move || { 
             loop {
                 match Self::audio(
                     aaunit.unwrap(), // save as we wrapped it
-                    url.clone(), 
+                    bundle.clone(), 
                     receive_from_gui.clone(), 
                     send_from_audio.clone()) {
                     Some(json) => {
@@ -240,6 +279,7 @@ impl <'a>Standalone<'a> {
                             comms.send(
                                 Message::change_module(
                                     &([&url[..], &bundle.gui.url[..]].join("")), bundle.gui.width, bundle.gui.height)).unwrap();
+                            
                             // set default values for GUI
                             Self::send_params(&comms, &bundle.gui.params);
                             Self::set_params(&au, &bundle.gui.params);

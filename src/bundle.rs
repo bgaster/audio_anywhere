@@ -16,21 +16,21 @@ pub struct GUIBundle {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Info {
-    name: String,
-    vendor: String,
-    presets: u32,
-    parameters: u32,
-    inputs: u32,
-    outputs: u32,
-    midi_inputs: u32,
-    midi_outputs: u32,
-    id: u32,
-    version: u32,
-    category: String,
-    initial_delay: u32,
-    preset_chunks: bool,
-    f64_precision: bool,
-    silent_when_stopped: bool,
+    pub name: String,
+    pub vendor: String,
+    pub presets: u32,
+    pub parameters: u32,
+    pub inputs: i32,
+    pub outputs: i32,
+    pub midi_inputs: u32,
+    pub midi_outputs: u32,
+    pub id: u32,
+    pub version: u32,
+    pub category: String,
+    pub initial_delay: u32,
+    pub preset_chunks: bool,
+    pub f64_precision: bool,
+    pub silent_when_stopped: bool,
 }
 
 #[derive(Deserialize, Debug, Clone)]

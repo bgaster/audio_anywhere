@@ -24,6 +24,9 @@ pub enum MsgType {
     Console = 0,
     SendParam = 1,
     ChangeModule = 2,
+    ChangeInputDevice = 3,
+    ChangeOutputDevice = 4,
+    Loaded = 5,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -37,12 +40,14 @@ type JavascriptCallback = Box<dyn FnMut(&mut web_view::WebView<()>, &str) -> WVR
 
 struct Handler {
     sender: Box<dyn Send>,
+    gui_sender: Sender<Message>,
 }
 
 impl Handler  {
-    pub fn new(sender: Box<dyn Send>) -> Self {
+    pub fn new(sender: Box<dyn Send>, gui_sender: Sender<Message>) -> Self {
         Self {
             sender,
+            gui_sender,
         }
     }
 
@@ -57,10 +62,20 @@ impl Handler  {
     pub fn change_module(&mut self, value: Value) {
         self.sender.send(MessageID::ChangeModule, 0, value).unwrap();
     }
+
+    pub fn loaded(&mut self) {
+        self.gui_sender.send(Message {
+            id: MessageID::Loaded,
+            index: 0,
+            value: Value::VInt(0),
+        });
+    }
 }
 
 pub struct GUI<'a> {
     webview: WebView<'a, ()>,
+    // true once webview has loaded, message sent from onLoad
+    loaded: bool,
     size: (i32,i32),
     is_open: bool,
     external_sender: Sender<Message>,
@@ -77,7 +92,7 @@ impl <'a> GUI<'a> {
 
         let (external_sender, external_receiver) = channel();
 
-        let mut handler = Handler::new(audio_sender);
+        let mut handler = Handler::new(audio_sender, external_sender.clone());
 
         match web_view::builder()
             .title(title)
@@ -91,6 +106,7 @@ impl <'a> GUI<'a> {
                 Ok(webview) => {
                     Ok(GUI {
                         webview,
+                        loaded: false,
                         size,
                         is_open: false,
                         external_sender,
@@ -121,23 +137,22 @@ impl <'a> GUI<'a> {
 
     pub fn run(&mut self) {
         self.is_open = true;
+        
+        let mut msgs = Vec::new();
+
         loop {
+            
             // process any incoming messages
             loop {
                 match self.external_receiver.try_recv() {
                     Ok(m) => {
                         match m.id {
-                            MessageID::Param => {
-                                Self::param_change(&mut self.webview, m.index, m.value.to_string()).unwrap();
-                            }
-                            MessageID::Control => {
-                                Self::control_change(&mut self.webview, m.index, m.value.to_string()).unwrap();
-                            }
-                            MessageID::ChangeModule => {
-                                let str = m.value.to_string().clone();
-                                let args: Vec<&str> = str.split_whitespace().collect();
-                                Self::change_module(&mut self.webview, args[0], args[1], args[2]);
+                            MessageID::Loaded => {
+                                self.loaded = true;
                             },
+                            _ => {
+                                msgs.push(m.clone());
+                            }
                         }
                     }
                     _ => {
@@ -145,6 +160,39 @@ impl <'a> GUI<'a> {
                     }
                 }
             }
+
+            if self.loaded {
+                for m in msgs.iter() {
+                    match (*m).id {
+                        MessageID::Param => {
+                            Self::param_change(&mut self.webview, (*m).index, (*m).value.to_string()).unwrap();
+                        }
+                        MessageID::Control => {
+                            Self::control_change(&mut self.webview, (*m).index, (*m).value.to_string()).unwrap();
+                        }
+                        MessageID::ChangeModule => {
+                            let str = (*m).value.to_string().clone();
+                            let args: Vec<&str> = str.split_whitespace().collect();
+                            Self::change_module(&mut self.webview, args[0], args[1], args[2]);
+                        },
+                        MessageID::AddInputDevice => {
+                            let str = (*m).value.to_string().clone();
+                            let args: Vec<&str> = str.split("=").collect();
+                            Self::add_input_device(&mut self.webview, args[0], args[1]);
+                        },
+                        MessageID::AddOutputDevice => {
+                            let str = (*m).value.to_string().clone();
+                            let args: Vec<&str> = str.split("=").collect();
+                            Self::add_output_device(&mut self.webview, args[0], args[1]);
+                        },
+                        _ => {
+                            // no need to handle loaded
+                        }
+                    }
+                }
+                msgs.clear();
+            }
+
             // step the webview
             match self.webview.step() {
                 Some(Ok(_)) => (),
@@ -174,6 +222,15 @@ impl <'a> GUI<'a> {
                             MsgType::ChangeModule => {
                                 return message.value.clone()
                                     .map_or(Ok(()), |v| { handler.change_module(v); Ok(()) });
+                            },
+                            MsgType::ChangeInputDevice => {
+
+                            },
+                            MsgType::ChangeOutputDevice => {
+                                
+                            },
+                            MsgType::Loaded => {
+                                handler.loaded();
                             }
                         }
                 },
@@ -195,8 +252,17 @@ impl <'a> GUI<'a> {
 
     fn change_module(webview: &mut WebView<()>, url: &str, width: &str, height: &str) -> WVResult {
         let eval = format!("OnModuleChange(\"{}\",\"{}\",\"{}\")", url, width, height);
-        //println!("{}", eval);
         webview.eval(&eval).unwrap();
+        Ok(())
+    }
+
+    fn add_input_device(webview: &mut WebView<()>, name: &str, index: &str) -> WVResult {
+        webview.eval(&format!("OnAddInputDevice({},\"{}\")", index, name)).unwrap();
+        Ok(())
+    }
+
+    fn add_output_device(webview: &mut WebView<()>, name: &str, index: &str) -> WVResult {
+        webview.eval(&format!("OnAddOutputDevice({},\"{}\")", index, name)).unwrap();
         Ok(())
     }
 }

@@ -18,11 +18,20 @@
             top: 0;
             background: #555;
             color: #f1f1f1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            align-content: flex-start;
           }
           
+        .headeritem {
+            flex-grow: 1;
+            align-self: auto;
+        }
+
           /* Page content */
           .content {
-            padding: 16px;
+            padding: 40px;
           }
           
           /* The sticky class is added to the header with JS when it reaches its scroll position */
@@ -33,7 +42,8 @@
             width: 100%
           }
           
-          /* Add some top padding to the page content to prevent sudden quick movement (as the header gets a new position at the top of the page (position:fixed and top:0) */
+          /* Add some top padding to the page content to prevent sudden quick movement (as the header gets a 
+             new position at the top of the page (position:fixed and top:0) */
           .sticky + .content {
             padding-top: 102px;
           }
@@ -56,7 +66,6 @@
         
     </style>
     <link rel="stylesheet" type="text/css" href="http://127.0.0.1:8000/css/semantic.min.css">
-    <!-- <script src="https://g200kg.github.io/webaudio-controls/webaudio-controls.js" ></script> -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src = "http://127.0.0.1:8000/js/support.js"></script>
     <script src = "http://127.0.0.1:8000/js/semantic.min.js"></script>
@@ -67,28 +76,43 @@
     
 </head>
     <body>
-        <div class="header sticky" id="aaHeader">
-            <div class="ui vertical menu">
-                <div class="ui dropdown item">
-                  Modules
-                  <i class="dropdown icon"></i>
-                  <div class="menu">
-                    <a class="item" data-value="/gain/gain.json">Gain</a>
-                    <a class="item" data-value="/sine/sine.json">Sine</a>
-                    <a class="item" data-value="/default/default.json">Default</a>
-                  </div>
-                </div>
-            </div>
-        </div>
         <div class="content">
             <div class="audioanywhere">
                 <div id="module"></div>
             </div>
         </div>
-        
 
+        <div class="header sticky" id="aaHeader">
+            <div class="ui dropdown selection headeritem" id="modules">
+                Modules
+                <i class="dropdown icon"></i>
+                <div class="menu">
+                    <a class="item" data-value="/gain/gain.json">Gain</a>
+                    <a class="item" data-value="/sine/sine.json">Sine</a>
+                    <a class="item" data-value="/default/default.json">Default</a>
+                </div>
+            </div>
+        
+            <div class="ui dropdown selection headeritem" id="inputDevices" >
+                Input Devices
+                <i class="dropdown icon"></i>
+                <div class="menu" name="inputDevicesMenu">
+                </div>
+            </div>
+        
+            <div class="ui dropdown selection headeritem" id="outputDevices">
+                Output Devices
+                <i class="dropdown icon"></i>
+                <div class="menu">
+                </div>
+            </div>
+        </div>
+        
         <script>
             var change_module = 2;
+            var change_input_device = 3;
+            var change_output_device = 4;
+            var loaded = 5;
 
             function genIFrame(url, width, height) {
                 let h = "<iframe src=\"" + url + "\" style=\"height: " + height + "px; width: " + width + "px; border: none;\"><iframe>";
@@ -100,6 +124,14 @@
                 var fragmentId = location.hash.substr(1);
                 contentDiv.innerHTML = genIFrame(url, width, height);  
             }
+
+            function OnAddOutputDevice(id, name) {
+                $('#outputDevices > .menu').append("<a class=\"item\" data-value=\"" + id + "\">" + name + "</a>");
+            }
+
+            function OnAddInputDevice(id, name) {
+                $('#inputDevices > .menu').append("<a class=\"item\" data-value=\"" + id + "\">" + name + "</a>");
+            }
             
             window.onload = function() {
                 console.log = console.error = (str) => {
@@ -108,19 +140,32 @@
                 // install default module...
                 OnModuleChange("http://127.0.0.1:8000/$gui_page$", $width$, $height$);
 
-                $('.ui.dropdown').dropdown({
+                //$('.ui.dropdown').dropdown({
+                $('#modules').dropdown({
                     onChange: (value, text, $selectedItem) => {
                         sendMsg(change_module, 0, value);
-                        //console.log(control_change);
-                        //console.log(typeof value);
-                        //if (value == "sine") {
-                            //console.log("may");
-                        //    
-                        //}
+                    },
+                    on: "hover"
+                });
+
+                $('#inputDevices').dropdown({
+                    onChange: (value, text, $selectedItem) => {
+                        sendMsg(change_input_device, 0, value);
                         //console.log(value);
                     },
                     on: "hover"
                 });
+
+                $('#outputDevices').dropdown({
+                    onChange: (value, text, $selectedItem) => {
+                        sendMsg(change_output_device, 0, value); 
+                        //console.log(value);
+                    },
+                    on: "hover"
+                });
+
+                // inform the app that we are now loaded
+                sendMsg(loaded, 0);
             }
 
             window.onscroll = function() {
@@ -133,7 +178,8 @@
             // Get the offset position of the navbar
             var sticky = header.offsetTop;
     
-            // Add the sticky class to the header when you reach its scroll position. Remove "sticky" when you leave the scroll position
+            // Add the sticky class to the header when you reach its scroll position. 
+            // Remove "sticky" when you leave the scroll position
             function handleSticky() {
                 if (window.pageYOffset > sticky) {
                     header.classList.add("sticky");

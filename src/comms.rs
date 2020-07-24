@@ -13,7 +13,11 @@ pub enum MessageID {
     /// control change
     Control = 1,
     /// change current module
-    ChangeModule = 3,
+    ChangeModule = 2,
+    /// add input device
+    AddInputDevice = 3,
+    AddOutputDevice = 4,
+    Loaded = 5,
 }
 
 #[derive(Clone, Debug)]
