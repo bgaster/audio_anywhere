@@ -63,6 +63,14 @@ impl Handler  {
         self.sender.send(MessageID::ChangeModule, 0, value).unwrap();
     }
 
+    pub fn add_input_device(&mut self, value: Value) {
+        self.sender.send(MessageID::AddInputDevice, 0, value).unwrap();
+    }
+
+    pub fn add_output_device(&mut self, value: Value) {
+        self.sender.send(MessageID::AddOutputDevice, 0, value).unwrap();
+    }
+
     pub fn loaded(&mut self) {
         self.gui_sender.send(Message {
             id: MessageID::Loaded,
@@ -185,6 +193,9 @@ impl <'a> GUI<'a> {
                             let args: Vec<&str> = str.split("=").collect();
                             Self::add_output_device(&mut self.webview, args[0], args[1]);
                         },
+                        MessageID::Exit => {
+                            // TODO: add Exit message?
+                        },
                         _ => {
                             // no need to handle loaded
                         }
@@ -224,10 +235,12 @@ impl <'a> GUI<'a> {
                                     .map_or(Ok(()), |v| { handler.change_module(v); Ok(()) });
                             },
                             MsgType::ChangeInputDevice => {
-
+                                return message.value.clone()
+                                    .map_or(Ok(()), |v| { handler.add_input_device(v); Ok(()) });
                             },
                             MsgType::ChangeOutputDevice => {
-                                
+                                return message.value.clone()
+                                    .map_or(Ok(()), |v| { handler.add_output_device(v); Ok(()) });
                             },
                             MsgType::Loaded => {
                                 handler.loaded();

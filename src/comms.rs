@@ -18,6 +18,7 @@ pub enum MessageID {
     AddInputDevice = 3,
     AddOutputDevice = 4,
     Loaded = 5,
+    Exit = 6,
 }
 
 #[derive(Clone, Debug)]
