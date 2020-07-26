@@ -2,6 +2,8 @@
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::thread;
 use std::sync::Arc;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 extern crate crossbeam_channel;
 use crossbeam_channel as cb;
@@ -26,6 +28,8 @@ pub struct Standalone<'a> {
     bundle: Bundle,
     /// swapable AA Unit
     aaunit: AAUnit,
+    input_device: pa::DeviceIndex,
+    output_device: pa::DeviceIndex,
     gui: GUI<'a>,
     /// incomming messages from GUI
     receive_from_gui: cb::Receiver<Message>,
@@ -59,7 +63,11 @@ impl <'a>Standalone<'a> {
                 bundle.gui.params.clone(), //vec![Value::VFloat(-50.)],
                 "Audio Anywhere",
                 (900,900)).and_then(|gui| {
-                    
+                    let pa = pa::PortAudio::new().unwrap();
+                    let input_device = pa.default_input_device().unwrap();
+                    let output_device = pa.default_output_device().unwrap();
+
+
                     let comms_sender = gui.comms_sender();
                     let comms = gui.comms();
                     
@@ -72,6 +80,8 @@ impl <'a>Standalone<'a> {
                         url: url.to_string(),
                         bundle,
                         aaunit,
+                        input_device,
+                        output_device,
                         gui,
                         receive_from_gui,
                         send_from_audio,
@@ -162,64 +172,58 @@ impl <'a>Standalone<'a> {
     }
 
     fn audio(
-        aaunit: AAUnit, 
+        aaunit: Rc<RefCell<AAUnit>>, 
+        input_device: pa::DeviceIndex,
+        output_device: pa::DeviceIndex,
         bundle: Bundle, 
         receive_from_gui: cb::Receiver<Message>, 
-        send_from_audio: Sender<(u32, Value)>) -> Option<String> {
+        send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
         let pa = pa::PortAudio::new().unwrap();
 
         const TABLE_SIZE: usize = 200;
 
         let input_params = pa::stream::Parameters::new(
-            pa::DeviceIndex(1), 
+            input_device, 
             bundle.info.inputs,
             true,
             0.1);
 
         let output_params = pa::stream::Parameters::new(
-            pa::DeviceIndex(3), 
+            output_device, 
             bundle.info.outputs,
             true,
             0.1);
 
         let mut settings = 
-            pa::stream::DuplexSettings::new(input_params, output_params, 44_100.0, 64);
-
-        // let mut settings =
-        //     pa.default_duplex_stream_settings(1, 1, 44_100.0, 64).unwrap();
+            pa::stream::DuplexSettings::new(
+                input_params, output_params, 44_100.0, 64);
 
         // we won't output out of range samples so don't bother clipping them.
-        settings.flags = pa::stream_flags::CLIP_OFF;
+        //settings.flags = pa::stream_flags::CLIP_OFF;
 
         let mut input: [f32;64] = [0.;64];
 
         let (send_stop,rec_stop) = channel();
-
         let callback = move |pa::DuplexStreamCallbackArgs {
             in_buffer, 
             out_buffer, 
             frames, 
-            .. }| {
-                
+            .. }| { 
                 // handle any incomming messages from UI
                 loop {
                     if let Ok(message) = receive_from_gui.try_recv() {
                         match message.id {
                             MessageID::Param => {
-                                Self::set_param(&aaunit, message.index, message.value);
+                                Self::set_param(&aaunit.borrow(), message.index, message.value);
                             },
                             MessageID::Control => {},
-                            MessageID::ChangeModule => {
-                                if let Value::VString(s) = message.value {
-                                    send_stop.send(Some(s)).unwrap();
-                                    return pa::Complete;
-                                }
-                            },
-                            MessageID::AddInputDevice => {
-
-                            },
-                            MessageID::AddOutputDevice => {
-
+                            MessageID::ChangeModule | MessageID::AddInputDevice | MessageID::AddOutputDevice=> {
+                                send_stop.send(Some(message.clone())).unwrap();
+                                return pa::Complete;
+                                // if let Value::VString(s) = message.value {
+                                //     send_stop.send(Some(s)).unwrap();
+                                //     return pa::Complete;
+                                // }
                             },
                             _ => {
 
@@ -236,7 +240,7 @@ impl <'a>Standalone<'a> {
                     LEFT_MEMORY_BUFFER = &mut out_buffer[0]; 
                 }
 
-                aaunit.compute.call(frames as u32).unwrap();
+                aaunit.borrow().compute.call(frames as u32).unwrap();
 
                 pa::Continue
         };
@@ -259,7 +263,9 @@ impl <'a>Standalone<'a> {
 
     pub fn run(mut self) -> Result<()> {
         let mut gui = self.gui;
-        let mut aaunit = Some(self.aaunit); // help the borrow checker
+        let aaunit = self.aaunit;
+        let mut input_device = self.input_device;
+        let mut output_device = self.output_device;
         let url = self.url;
         let receive_from_gui = self.receive_from_gui;
         let send_from_audio = self.send_from_audio;
@@ -267,34 +273,39 @@ impl <'a>Standalone<'a> {
         let bundle = self.bundle;
 
         let _audio_thread = thread::spawn(move || { 
-            loop {
-                match Self::audio(
-                    aaunit.unwrap(), // save as we wrapped it
-                    bundle.clone(), 
-                    receive_from_gui.clone(), 
-                    send_from_audio.clone()) {
-                    Some(json) => {
-                        if let Ok((au, bundle)) = Self::create_aaunit(&url, &json, send_from_audio.clone()) {
-                            // order of messages is important here
-                            comms.send(
-                                Message::change_module(
-                                    &([&url[..], &bundle.gui.url[..]].join("")), bundle.gui.width, bundle.gui.height)).unwrap();
-                            
-                            // set default values for GUI
-                            Self::send_params(&comms, &bundle.gui.params);
-                            Self::set_params(&au, &bundle.gui.params);
-                            aaunit = Some(au);
-                        }
-                        else {
-                            aaunit = None;
-                            break;
+            let aaunit = Rc::new(RefCell::new(aaunit));
+            while let Some(message) = Self::audio(
+                            aaunit.clone(),
+                            input_device,
+                            output_device,
+                            bundle.clone(), 
+                            receive_from_gui.clone(), 
+                            send_from_audio.clone()) {
+                match message.id {
+                    MessageID::AddInputDevice => {
+                    },
+                    MessageID::AddOutputDevice => {
+                    },
+                    MessageID::ChangeModule => {
+                        if let Value::VString(json) = message.value {
+                            if let Ok((au, bundle)) = 
+                                Self::create_aaunit(&url, &json, send_from_audio.clone()) {
+                                comms.send(
+                                    Message::change_module(
+                                        &([&url[..], 
+                                            &bundle.gui.url[..]].join("")), 
+                                            bundle.gui.width, 
+                                            bundle.gui.height)).unwrap();
+                                
+                                // set default values for GUI
+                                Self::send_params(&comms, &bundle.gui.params);
+                                Self::set_params(&au, &bundle.gui.params);
+                                // finally install the auunit
+                                *aaunit.borrow_mut() = au;
+                            }
                         }
                     },
-                    _ => {
-                        // TODO: send quit message to GUI..
-                        aaunit = None;
-                        break;
-                    }
+                    _ => { }
                 }
             }
         });

@@ -173,12 +173,12 @@ impl <'a> GUI<'a> {
                         MessageID::ChangeModule => {
                             let str = (*m).value.to_string().clone();
                             let args: Vec<&str> = str.split_whitespace().collect();
-                            Self::change_module(&mut self.webview, args[0], args[1], args[2]);
+                            Self::change_module(&mut self.webview, args[0], args[1], args[2]).unwrap();
                         },
                         MessageID::AddInputDevice => {
                             let str = (*m).value.to_string().clone();
                             let args: Vec<&str> = str.split("=").collect();
-                            Self::add_input_device(&mut self.webview, args[0], args[1]);
+                            Self::add_input_device(&mut self.webview, args[0], args[1]).unwrap();
                         },
                         MessageID::AddOutputDevice => {
                             let str = (*m).value.to_string().clone();
