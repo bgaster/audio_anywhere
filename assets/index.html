@@ -122,10 +122,7 @@
             <div class="ui dropdown selection headeritem" id="modules">
                 Modules
                 <i class="dropdown icon"></i>
-                <div class="menu">
-                    <a class="item orange" data-value="/gain/gain.json">Gain</a>
-                    <a class="item" data-value="/sine/sine.json">Sine</a>
-                    <a class="item" data-value="/default/default.json">Default</a>
+                <div class="menu" name="modulesMenu">
                 </div>
             </div>
         
@@ -168,11 +165,15 @@
             }
 
             function OnAddOutputDevice(id, name) {
-                $('#outputDevices > .menu').append("<a class=\"item\" data-value=\"" + id + "\">" + name + "</a>");
+                $('#outputDevices > .menu').append("<a class=\"item\" data-value=" + id + ">" + name + "</a>");
             }
 
             function OnAddInputDevice(id, name) {
-                $('#inputDevices > .menu').append("<a class=\"item\" data-value=\"" + id + "\">" + name + "</a>");
+                $('#inputDevices > .menu').append("<a class=\"item\" data-value=" + id + ">" + name + "</a>");
+            }
+
+            function OnAddModule(name, json_url) {
+                $('#modules > .menu').append("<a class=\"item\" data-value=\"" + json_url + "\">" + name + "</a>");
             }
             
             window.onload = function() {
@@ -192,7 +193,7 @@
 
                 $('#inputDevices').dropdown({
                     onChange: (value, text, $selectedItem) => {
-                        sendMsg(change_input_device, 0, value);
+                        sendMsg(change_input_device, 0, parseInt(value, 10));
                         //console.log(value);
                     },
                     on: "hover"
@@ -200,7 +201,7 @@
 
                 $('#outputDevices').dropdown({
                     onChange: (value, text, $selectedItem) => {
-                        sendMsg(change_output_device, 0, value); 
+                        sendMsg(change_output_device, 0, parseInt(value, 10)); 
                         //console.log(value);
                     },
                     on: "hover"

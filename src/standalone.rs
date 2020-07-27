@@ -47,61 +47,64 @@ impl <'a>Standalone<'a> {
        
         // Load GUI HTML, index.html is the same for all anywhere modules
         let html = get_string(&[url, "index.html"].join("/")).unwrap(); 
-        
-        let (send_from_gui, receive_from_gui) = cb::unbounded();
-        let (send_from_audio, receive_from_audio) = channel();
+        let modules = get_string(&[url, "modules.json"].join("/")).unwrap();
+        Modules::from_json(&modules).and_then(|modules| {
+            let (send_from_gui, receive_from_gui) = cb::unbounded();
+            let (send_from_audio, receive_from_audio) = channel();
 
-        let json = "default/default.json";
-        let json = "gain/gain.json";
+            let json = "default/default.json";
+            let json = &modules.default.clone();
 
-        Self::create_aaunit(url, json, send_from_audio.clone()).and_then(|(aaunit, bundle)| {
-            let html = html.replace("$gui_page$", &bundle.gui.url)
-                .replace("$width$", &bundle.gui.width.to_string())
-                .replace("$height$", &bundle.gui.height.to_string());
+            Self::create_aaunit(url, json, send_from_audio.clone()).and_then(|(aaunit, bundle)| {
+                let html = html.replace("$gui_page$", &bundle.gui.url)
+                    .replace("$width$", &bundle.gui.width.to_string())
+                    .replace("$height$", &bundle.gui.height.to_string());
 
-            GUI::new(
-                &html[..],
-                Box::new(LocalSendCB::new(send_from_gui.clone())),
-                bundle.gui.params.clone(), //vec![Value::VFloat(-50.)],
-                "Audio Anywhere",
-                (900,900)).and_then(|gui| {
-                    let pa = pa::PortAudio::new().unwrap();
-                    let input_device = pa.default_input_device().unwrap();
-                    let output_device = pa.default_output_device().unwrap();
+                GUI::new(
+                    &html[..],
+                    Box::new(LocalSendCB::new(send_from_gui.clone())),
+                    bundle.gui.params.clone(), //vec![Value::VFloat(-50.)],
+                    "Audio Anywhere",
+                    (900,900)).and_then(|gui| {
+                        let pa = pa::PortAudio::new().unwrap();
+                        let input_device = pa.default_input_device().unwrap();
+                        let output_device = pa.default_output_device().unwrap();
 
-
-                    let comms_sender = gui.comms_sender();
-                    let comms = gui.comms();
-                    
-                    // send Audio devices to GUI
-                    Self::send_audio_devices(&comms_sender);
-                    // set default values for GUI and AAUnit
-                    Self::send_params(&comms_sender, &bundle.gui.params);
-                    Self::set_params(&aaunit, &bundle.gui.params);
-                    Ok(Self {
-                        url: url.to_string(),
-                        bundle,
-                        aaunit,
-                        input_device,
-                        output_device,
-                        gui,
-                        receive_from_gui,
-                        send_from_audio,
-                        send_from_gui,
-                        comms,
-                        comms_sender,
-                    })
+                        let comms_sender = gui.comms_sender();
+                        let comms = gui.comms();
+                        
+                        // send Modules to GUI
+                        Self::send_modules(&comms_sender, &modules.modules);
+                        // send Audio devices to GUI
+                        Self::send_audio_devices(&comms_sender);
+                        // set default values for GUI and AAUnit
+                        Self::send_params(&comms_sender, &bundle.gui.params);
+                        Self::set_params(&aaunit, &bundle.gui.params);
+                        
+                        Ok(Self {
+                            url: url.to_string(),
+                            bundle,
+                            aaunit,
+                            input_device,
+                            output_device,
+                            gui,
+                            receive_from_gui,
+                            send_from_audio,
+                            send_from_gui,
+                            comms,
+                            comms_sender,
+                        })
+                })
             })
         })
     }
 
+    // send a list of input/output audio devices to GUI
     fn send_audio_devices(comms: &Sender<Message>) {
         let pa = pa::PortAudio::new().unwrap();
         for device in pa.devices().unwrap() {
             let (index, info) = device.unwrap();
-            // println!("--------------------------------------- {:?}", index);
-            // println!("{:#?}", &info);
-            
+        
             if info.max_input_channels > 0 {
                 Self::send_add_input_device(&comms, info.name, index);
             }
@@ -123,6 +126,23 @@ impl <'a>Standalone<'a> {
         }
     }
 
+    // send a list of modules to GUI
+    fn send_modules(comms: &Sender<Message>, modules: &Vec<Module>) {
+        for m in modules {
+            Self::send_add_module(comms, &m.name, &m.json_url);
+        }
+    }
+
+    // send a message to GUI to add a module to drop down menu
+    fn send_add_module(comms: &Sender<Message>, name: &str, json_url: &str) {
+        comms.send(Message {
+            id: MessageID::AddModule,
+            index: 0,
+            value: Value::VString([name, json_url].join("="))
+        }).unwrap();
+    }
+
+    // send a message to GUI to add an input audio device
     fn send_add_input_device(comms: &Sender<Message>, name: &str, index: pa::DeviceIndex) {
         comms.send(Message {
             id: MessageID::AddInputDevice,
@@ -131,6 +151,7 @@ impl <'a>Standalone<'a> {
         }).unwrap();
     }
 
+    // send a message to GUI to add an output audio device
     fn send_add_output_device(comms: &Sender<Message>, name: &str, index: pa::DeviceIndex) {
         comms.send(Message {
             id: MessageID::AddOutputDevice,
@@ -154,6 +175,7 @@ impl <'a>Standalone<'a> {
         })
     }
 
+    // set a aaunit parameter
     #[inline]
     fn set_param(aaunit: &AAUnit, index: Index, param: Value) {
         match param {
@@ -168,6 +190,7 @@ impl <'a>Standalone<'a> {
         }
     }
 
+    // set aaunit parameters from a list of parameters
     fn set_params(aaunit: &AAUnit, params: &Vec<Value>) {
         for (index, param) in params.iter().enumerate() {
             Self::set_param(aaunit, index as u32, (*param).clone());
@@ -275,6 +298,11 @@ impl <'a>Standalone<'a> {
         // create thread to handle all things audio...
         let audio_thread = thread::spawn(move || { 
             let aaunit = Rc::new(RefCell::new(aaunit));
+            // audio can quit for a number of reasons:
+            //          request change input/ouput device
+            //          change audio anywhere module
+            //          exit application
+            //          unknown error
             while let Some(message) = Self::audio(
                             aaunit.clone(),
                             input_device,
@@ -283,16 +311,19 @@ impl <'a>Standalone<'a> {
                             receive_from_gui.clone(), 
                             send_from_audio.clone()) {
                 match message.id {
+                    // switch input device
                     MessageID::AddInputDevice => {
                         if let Value::VInt(index) =  message.value {
                             input_device = pa::DeviceIndex(index as u32);
                         }
                     },
+                    // switch output device
                     MessageID::AddOutputDevice => {
                         if let Value::VInt(index) =  message.value {
                             output_device = pa::DeviceIndex(index as u32);
                         }
                     },
+                    // switch module
                     MessageID::ChangeModule => {
                         if let Value::VString(json) = message.value {
                             if let Ok((au, bundle_new)) = 
@@ -307,6 +338,7 @@ impl <'a>Standalone<'a> {
                                 // set default values for GUI
                                 Self::send_params(&comms, &bundle_new.gui.params);
                                 Self::set_params(&au, &bundle_new.gui.params);
+
                                 // finally install the auunit and bundle
                                 *aaunit.borrow_mut() = au;
                                 bundle = bundle_new;
@@ -329,7 +361,7 @@ impl <'a>Standalone<'a> {
             index: 0,
             value: Value::VInt(0),
         });
-        audio_thread.join();
+        audio_thread.join().unwrap();
         
         Ok(())
     }

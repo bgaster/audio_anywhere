@@ -196,6 +196,11 @@ impl <'a> GUI<'a> {
                         MessageID::Exit => {
                             // TODO: add Exit message?
                         },
+                        MessageID::AddModule => {
+                            let str = (*m).value.to_string().clone();
+                            let args: Vec<&str> = str.split("=").collect();
+                            Self::add_module(&mut self.webview, args[0], args[1]);
+                        },
                         _ => {
                             // no need to handle loaded
                         }
@@ -276,6 +281,11 @@ impl <'a> GUI<'a> {
 
     fn add_output_device(webview: &mut WebView<()>, name: &str, index: &str) -> WVResult {
         webview.eval(&format!("OnAddOutputDevice({},\"{}\")", index, name)).unwrap();
+        Ok(())
+    }
+
+    fn add_module(webview: &mut WebView<()>, name: &str, json_url: &str) -> WVResult {
+        webview.eval(&format!("OnAddModule(\"{}\",\"{}\")", name, json_url)).unwrap();
         Ok(())
     }
 }

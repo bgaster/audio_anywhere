@@ -47,3 +47,22 @@ impl Bundle {
         bundle.map_or(err(), |b| ok(b))
     }
 }
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Module {
+    pub name: String,
+    pub json_url: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Modules {
+    pub default: String,
+    pub modules: Vec<Module>,
+}
+
+impl Modules {
+    pub fn from_json(data: &str) -> Result<Self> {
+        let modules : serde_json::Result<Modules> = serde_json::from_str(data);
+        modules.map_or(err(), |b| ok(b))
+    }
+}

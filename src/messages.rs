@@ -5,8 +5,8 @@ use serde_repr::{Deserialize_repr};
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum Value {
-    VFloat(f32),
     VInt(i32),
+    VFloat(f32),
     VString(String),
 }
 

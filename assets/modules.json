@@ -1,0 +1,8 @@
+{
+    "default": "/gain/gain.json",
+    "modules": 
+        [
+            { "name": "Gain", "json_url": "/gain/gain.json"},
+            { "name": "Default", "json_url": "/default/default.json"}
+        ]
+}

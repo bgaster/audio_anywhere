@@ -54,8 +54,8 @@ pub fn set_param_float(index: u32, v: f32) {
 }
 
 #[no_mangle]
-pub fn set_param_int(_index: u32, _v: i32) {
-   unsafe { core::arch::wasm32::unreachable(); }
+pub fn set_param_int(index: u32, v: i32) {
+    unsafe { *(PARAMS_FLOAT.as_mut_ptr().add(index as usize)) = v as f32; } 
 }
 
 /// set bool parameter 
