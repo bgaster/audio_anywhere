@@ -15,21 +15,21 @@ use crate::comms::*;
 use crate::utils::*;
 use crate::bundle::*;
 
-use curl::easy::Easy;
-
-use std::f64::consts::PI;
-
 extern crate portaudio;
 use portaudio as pa;
 
 pub struct Standalone<'a> {
     /// url used for interface, modules, and the like
     url: String, 
+    /// bundle for the currently loaded module
     bundle: Bundle,
-    /// swapable AA Unit
+    /// swapable AA Unit, representing the currently loaded module
     aaunit: AAUnit,
+    /// currently selected audio input device
     input_device: pa::DeviceIndex,
+    /// currenlty selected audio outut device
     output_device: pa::DeviceIndex,
+    /// GUI, only one instance for application, modules are injected iframe
     gui: GUI<'a>,
     /// incomming messages from GUI
     receive_from_gui: cb::Receiver<Message>,
@@ -197,7 +197,8 @@ impl <'a>Standalone<'a> {
         }
     }
 
-    fn audio(
+    /// audio handler for duplex streams (i.e. input and output)
+    fn audio_duplex(
         aaunit: Rc<RefCell<AAUnit>>, 
         input_device: pa::DeviceIndex,
         output_device: pa::DeviceIndex,
@@ -205,8 +206,6 @@ impl <'a>Standalone<'a> {
         receive_from_gui: cb::Receiver<Message>, 
         send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
         let pa = pa::PortAudio::new().unwrap();
-
-        const TABLE_SIZE: usize = 200;
 
         let input_params = pa::stream::Parameters::new(
             input_device, 
@@ -220,14 +219,9 @@ impl <'a>Standalone<'a> {
             true,
             0.1);
 
-        let mut settings = 
+        let settings = 
             pa::stream::DuplexSettings::new(
                 input_params, output_params, 44_100.0, 64);
-
-        // we won't output out of range samples so don't bother clipping them.
-        //settings.flags = pa::stream_flags::CLIP_OFF;
-
-        let mut input: [f32;64] = [0.;64];
 
         let (send_stop,rec_stop) = channel();
         let callback = move |pa::DuplexStreamCallbackArgs {
@@ -260,7 +254,13 @@ impl <'a>Standalone<'a> {
 
                 unsafe { 
                     LEFT_INPUT_MEMORY_BUFFER = &in_buffer[0]; //&input[0]; //
+                    if bundle.info.inputs > 1 {
+                        RIGHT_INPUT_MEMORY_BUFFER = &in_buffer[1];
+                    }
                     LEFT_MEMORY_BUFFER = &mut out_buffer[0]; 
+                    if bundle.info.outputs > 1 {
+                        RIGHT_MEMORY_BUFFER = &mut out_buffer[1];
+                    }
                 }
 
                 aaunit.borrow().compute.call(frames as u32).unwrap();
@@ -284,7 +284,100 @@ impl <'a>Standalone<'a> {
         }
     }
 
-    pub fn run(mut self) -> Result<()> {
+    /// audio handler for output stream only
+    fn audio_output_only(
+        aaunit: Rc<RefCell<AAUnit>>, 
+        output_device: pa::DeviceIndex,
+        bundle: Bundle, 
+        receive_from_gui: cb::Receiver<Message>, 
+        send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
+        let pa = pa::PortAudio::new().unwrap();
+
+        let output_params = pa::stream::Parameters::new(
+            output_device, 
+            bundle.info.outputs,
+            true,
+            0.1);
+
+        let settings = 
+            pa::stream::OutputSettings::new(output_params, 44_100.0, 64);        
+
+        let (send_stop,rec_stop) = channel();
+        let callback = move |pa::OutputStreamCallbackArgs {
+            buffer, 
+            frames, 
+            .. }| { 
+                // handle any incomming messages from UI
+                loop {
+                    if let Ok(message) = receive_from_gui.try_recv() {
+                        match message.id {
+                            MessageID::Param => {
+                                Self::set_param(&aaunit.borrow(), message.index, message.value);
+                            },
+                            MessageID::Control => {},
+                            MessageID::ChangeModule 
+                                | MessageID::AddInputDevice 
+                                | MessageID::AddOutputDevice 
+                                | MessageID::Exit => {
+                                send_stop.send(Some(message.clone())).unwrap();
+                                return pa::Complete;
+                            },
+                            _ => { }
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                }                                                
+
+                unsafe { 
+                    LEFT_MEMORY_BUFFER = &mut buffer[0];
+                    if bundle.info.outputs > 1 {
+                        RIGHT_MEMORY_BUFFER = &mut buffer[1];
+                    }
+                }
+
+                aaunit.borrow().compute.call(frames as u32).unwrap();
+
+                pa::Continue
+        };
+
+        let mut stream = pa.open_non_blocking_stream(settings, callback).unwrap();
+        stream.start().unwrap();
+
+        // block until we recieve message to swap module
+        match rec_stop.recv() {
+            Ok(s) => {
+                stream.stop().unwrap();
+                s 
+            }
+            _ => {
+                stream.stop().unwrap();
+                None
+            }
+        }
+    }
+
+    /// audio handler for either duplex or output only streams
+    #[inline]
+    fn audio(
+        aaunit: Rc<RefCell<AAUnit>>, 
+        input_device: pa::DeviceIndex,
+        output_device: pa::DeviceIndex,
+        bundle: Bundle, 
+        receive_from_gui: cb::Receiver<Message>, 
+        send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
+        if bundle.info.inputs > 0 {
+            Self::audio_duplex(aaunit, input_device, output_device, bundle, receive_from_gui, send_from_audio)
+        }
+        else {
+            Self::audio_output_only(aaunit, output_device, bundle, receive_from_gui, send_from_audio)
+        }
+    }
+
+    /// Take hold of module a run Audio handler and GUI.
+    /// The audio handler can be dynanically swapped on module change or input/output audio device change
+    pub fn run(self) -> Result<()> {
         let mut gui = self.gui;
         let aaunit = self.aaunit;
         let mut input_device = self.input_device;
@@ -360,7 +453,7 @@ impl <'a>Standalone<'a> {
             id: MessageID::Exit,
             index: 0,
             value: Value::VInt(0),
-        });
+        }).unwrap();
         audio_thread.join().unwrap();
         
         Ok(())

@@ -1,4 +1,3 @@
-#[macro_use]
 use serde::{Deserialize};
 use serde_repr::{Deserialize_repr};
 

@@ -12,7 +12,7 @@
 		"vendor": "cuberoo_",
 		"presets": 1,
 		"parameters": 0,
-		"inputs": 1,
+		"inputs": 0,
 		"outputs": 1,
 		"midi_inputs": 0,
 		"midi_outputs": 0,

@@ -1,4 +1,3 @@
-#[macro_use]
 use serde::{Deserialize};
 use serde_repr::{Deserialize_repr};
 
@@ -13,9 +12,6 @@ use std::os::raw::c_void;
 
 use crate::messages::*;
 use crate::comms::*;
-
-const PARAM_MSG: u32 = 0;
-const CONTROL_MSG: u32 = 1;
 
 #[derive(Deserialize_repr, PartialEq, Debug, Clone)]
 #[repr(u16)]
@@ -76,7 +72,7 @@ impl Handler  {
             id: MessageID::Loaded,
             index: 0,
             value: Value::VInt(0),
-        });
+        }).unwrap();
     }
 }
 
@@ -100,7 +96,7 @@ impl <'a> GUI<'a> {
 
         let (external_sender, external_receiver) = channel();
 
-        let mut handler = Handler::new(audio_sender, external_sender.clone());
+        let handler = Handler::new(audio_sender, external_sender.clone());
 
         match web_view::builder()
             .title(title)
@@ -135,7 +131,7 @@ impl <'a> GUI<'a> {
         Box::new(LocalSend::new(self.external_sender.clone()))
     } 
 
-    pub fn comms_arc(&self) -> Arc<dyn Send> {
+    pub fn _comms_arc(&self) -> Arc<dyn Send> {
         Arc::new(LocalSend::new(self.external_sender.clone()))
     }
 
@@ -191,7 +187,7 @@ impl <'a> GUI<'a> {
                         MessageID::AddOutputDevice => {
                             let str = (*m).value.to_string().clone();
                             let args: Vec<&str> = str.split("=").collect();
-                            Self::add_output_device(&mut self.webview, args[0], args[1]);
+                            Self::add_output_device(&mut self.webview, args[0], args[1]).unwrap();
                         },
                         MessageID::Exit => {
                             // TODO: add Exit message?
@@ -199,7 +195,7 @@ impl <'a> GUI<'a> {
                         MessageID::AddModule => {
                             let str = (*m).value.to_string().clone();
                             let args: Vec<&str> = str.split("=").collect();
-                            Self::add_module(&mut self.webview, args[0], args[1]);
+                            Self::add_module(&mut self.webview, args[0], args[1]).unwrap();
                         },
                         _ => {
                             // no need to handle loaded

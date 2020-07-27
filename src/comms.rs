@@ -22,11 +22,11 @@ pub enum MessageID {
     AddModule = 7,
 }
 
-#[derive(Clone, Debug)]
-pub enum Payload {
-    SValue(Value),
-    VValue(Vec<Value>),
-}
+// #[derive(Clone, Debug)]
+// pub enum Payload {
+//     SValue(Value),
+//     VValue(Vec<Value>),
+// }
 
 #[derive(Clone, Debug)]
 pub struct Message {
@@ -94,6 +94,6 @@ impl Send for LocalSendCB {
 }
 
 //TODO:
-struct RemoteSend;
+//struct RemoteSend;
 
 //-----------------------------------------------------------------------------
