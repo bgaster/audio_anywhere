@@ -15,6 +15,9 @@ use plugin::*;
 mod audio_anywhere;
 use audio_anywhere::*;
 
+mod audio_anywhere_wasmtime;
+mod standalone_wasmtime;
+
 mod standalone;
 use standalone::*;
 
@@ -33,7 +36,7 @@ struct Asset;
 //-----------------------------------------------------------------------------
 
 fn main() {
-    Standalone::new("http://127.0.0.1:8000")
+    standalone_wasmtime::Standalone::new("http://127.0.0.1:8000")
         .unwrap()
         .run()
         .unwrap();

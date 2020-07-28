@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Sender, Receiver};
 
-use wasmer_runtime::{imports,  Instance, compile, compile_with_config_with, func, Func, CompilerConfig };
+use wasmer_runtime::{imports,  Instance, compile, Features, compile_with_config, compile_with_config_with, func, Func, CompilerConfig };
 use wasmer_llvm_backend::LLVMCompiler;
 use wasmer_runtime_core::{compile_with, backend::MemoryBoundCheckMode};
 
@@ -72,6 +72,7 @@ impl AAUnit {
 
         let mut compiler_config = CompilerConfig::default();
         compiler_config.memory_bound_check_mode = MemoryBoundCheckMode::Disable;
+        compiler_config.features = Features { simd: true, threads: false };
 
         let import_object = imports! {
             "env" => {
@@ -80,7 +81,14 @@ impl AAUnit {
             }
         };
 
-        let instance = compile(wasm_bytes)
+        let instance = compile_with_config(
+            wasm_bytes, 
+            compiler_config)
+        // let instance = compile_with_config_with(
+        //     wasm_bytes, 
+        //     compiler_config,
+        //     &LLVMCompiler::new())
+        //let instance = compile(wasm_bytes)
             .unwrap()
             .instantiate(&import_object)
             .unwrap();
