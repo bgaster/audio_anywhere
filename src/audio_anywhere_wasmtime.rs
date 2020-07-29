@@ -16,11 +16,11 @@ use crate::utils::*;
 //------------------------------------------------------------------------------
 
 /// symbol for input buffer 0 in WASM module
-const IN_BUFFER0: &str = "IN_BUFFER";
+const IN_BUFFER0: &str = "IN_BUFFER0";
 /// symbol for input buffer 1 in WASM module
 const IN_BUFFER1: &str = "IN_BUFFER1";
 /// symbol for output buffer 0 in WASM module
-const OUT_BUFFER0: &str = "OUT_BUFFER";
+const OUT_BUFFER0: &str = "OUT_BUFFER0";
 /// symbol for output buffer 1 in WASM module
 const OUT_BUFFER1: &str = "OUT_BUFFER1";
 
