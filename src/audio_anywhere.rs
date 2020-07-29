@@ -1,3 +1,9 @@
+//! 
+//! Wasmer implementation of AAUnit
+//!  TODO: update to use the new API, which supports SIMD and internal buffers
+//! Copyright: Benedict R. Gaster
+#![allow(dead_code)]
+
 use std::sync::mpsc::{channel, Sender, Receiver};
 
 use wasmer_runtime::{imports,  Instance, compile, Features, compile_with_config, compile_with_config_with, func, Func, CompilerConfig };

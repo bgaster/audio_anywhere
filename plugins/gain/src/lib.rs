@@ -1,7 +1,5 @@
 #![feature(wasm_target_feature)]
 
-//use wasm_bindgen::prelude::*;
-
 const MAX_BUFFER_SIZE: usize = 1024;
 
 #[no_mangle]
@@ -48,7 +46,7 @@ impl MyDSP {
     }
     
 	pub fn get_input_rate(&self, channel: i32) -> i32 {
-		let mut rate: i32;
+		let rate: i32;
 		match channel {
 			0 => {
 				rate = 1;
@@ -61,7 +59,7 @@ impl MyDSP {
     }
     
 	pub fn get_output_rate(&self, channel: i32) -> i32 {
-		let mut rate: i32;
+		let rate: i32;
 		match channel {
 			0 => {
 				rate = 1;
@@ -73,7 +71,7 @@ impl MyDSP {
 		return rate;
 	}
 	
-	fn class_init(sample_rate: i32) {
+	fn class_init(_sample_rate: i32) {
 	}
 	fn instance_reset_params(&mut self) {
 		self.fVslider0 = 0.0;
@@ -109,12 +107,7 @@ impl MyDSP {
     #[target_feature(enable = "simd128")]
     #[inline]
 	unsafe fn compute_internal(&mut self, count: i32, inputs: &[f32], outputs: &mut[f32]) {
-		//let inputs0 = if let [inputs0, ..] = inputs {
 		let inputs0 = inputs[..count as usize].iter();
-			//inputs0
-		// } else {
-		// 	panic!("wrong number of inputs");
-		// };
 		let outputs0 = outputs[..count as usize].iter_mut();
 		
 		let fSlow0: f32 = 0.00100000005 * f32::powf(10.0, 0.0500000007 * (self.fVslider0 as f32));
@@ -134,11 +127,6 @@ impl MyDSP {
         };
         unsafe { self.compute_internal(count, inputs, outputs); }
     }
-}
-
-#[inline]
-fn set_sample_rate(sample_rate: f64) {
-    unsafe { engine.fSampleRate = sample_rate as i32 };
 }
 
 #[no_mangle]

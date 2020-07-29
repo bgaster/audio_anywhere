@@ -1,8 +1,14 @@
-static mut SAMPLE_RATE: f64 = 0.;
+#![feature(wasm_target_feature)]
 
-extern "C" {
-    fn write_left_audio(offset: i32, v: f32);
-}
+const MAX_BUFFER_SIZE: usize = 1024;
+
+#[no_mangle]
+pub static mut IN_BUFFER: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
+
+#[no_mangle]
+pub static mut OUT_BUFFER: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
+
+static mut SAMPLE_RATE: f64 = 0.;
 
 #[no_mangle]
 pub fn get_sample_rate() -> f64 {
@@ -71,8 +77,8 @@ pub fn get_param_bool(_index: u32) -> bool {
 
 #[no_mangle]
 pub fn compute(frames: u32) -> () {
-    // null output
-    for i in 0..frames {
-        unsafe { write_left_audio(i as i32, 0.); }
+    let outputs = unsafe { ::std::slice::from_raw_parts_mut(OUT_BUFFER.as_mut_ptr(), frames as usize) };
+    for o in outputs[..frames as usize].iter_mut() {
+        *o = 0.;
     }
 }

@@ -1,7 +1,11 @@
+//! 
+//! Wasmtime implementation of standalone app
+//! Copyright: Benedict R. Gaster
+//! 
+#![allow(dead_code)]
 
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, Sender};
 use std::thread;
-use std::sync::Arc;
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -18,15 +22,12 @@ use crate::bundle::*;
 extern crate portaudio;
 use portaudio as pa;
 
+/// Wasmtime based Standalone Audio Anytime Application
 pub struct Standalone<'a> {
     /// url used for interface, modules, and the like
     url: String, 
     /// default json
     json: String,
-    /// bundle for the currently loaded module
-    bundle: Bundle,
-    /// swapable AA Unit, representing the currently loaded module
-    aaunit: AAUnit,
     /// currently selected audio input device
     input_device: pa::DeviceIndex,
     /// currenlty selected audio outut device
@@ -54,7 +55,7 @@ impl <'a>Standalone<'a> {
             let (send_from_gui, receive_from_gui) = cb::unbounded();
             let (send_from_audio, receive_from_audio) = channel();
 
-            let json = "default/default.json";
+            // default module to be loaded on startup
             let json = &modules.default.clone();
 
             Self::create_aaunit(url, json, send_from_audio.clone()).and_then(|(aaunit, bundle)| {
@@ -86,8 +87,6 @@ impl <'a>Standalone<'a> {
                         Ok(Self {
                             url: url.to_string(),
                             json: json.to_string(),
-                            bundle,
-                            aaunit,
                             input_device,
                             output_device,
                             gui,
@@ -201,7 +200,8 @@ impl <'a>Standalone<'a> {
     }
 
     /// audio handler for duplex streams (i.e. input and output)
-    fn audio_duplex(
+    /// 0 < number inputs < 3 and 0 < number of outputs < 3
+    fn audio_x_y(
         aaunit: Rc<RefCell<AAUnit>>, 
         input_device: pa::DeviceIndex,
         output_device: pa::DeviceIndex,
@@ -210,15 +210,18 @@ impl <'a>Standalone<'a> {
         send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
         let pa = pa::PortAudio::new().unwrap();
 
+        let num_inputs = bundle.info.inputs;
+        let num_outputs = bundle.info.outputs;
+
         let input_params = pa::stream::Parameters::new(
             input_device, 
-            bundle.info.inputs,
+            num_inputs,
             true,
             0.1);
 
         let output_params = pa::stream::Parameters::new(
             output_device, 
-            bundle.info.outputs,
+            num_outputs,
             true,
             0.1);
 
@@ -255,22 +258,35 @@ impl <'a>Standalone<'a> {
                     }
                 }                                                
 
-                // unsafe { 
-                //     LEFT_INPUT_MEMORY_BUFFER = &in_buffer[0]; //&input[0]; //
-                //     if bundle.info.inputs > 1 {
-                //         RIGHT_INPUT_MEMORY_BUFFER = &in_buffer[1];
-                //     }
-                //     LEFT_MEMORY_BUFFER = &mut out_buffer[0]; 
-                //     if bundle.info.outputs > 1 {
-                //         RIGHT_MEMORY_BUFFER = &mut out_buffer[1];
-                //     }
-                // }
-
-                aaunit.borrow().compute_duplex_one_one(
-                    frames, 
-                    &in_buffer[..], 
-                    &mut out_buffer[..]);
-
+                if num_inputs == 1 {
+                    if num_outputs == 1 {
+                        aaunit.borrow().compute_one_one(
+                            frames, 
+                            &in_buffer[..], 
+                            &mut out_buffer[..]);
+                    }
+                    else {
+                        aaunit.borrow().compute_one_two(
+                            frames, 
+                            &in_buffer[..], 
+                            &mut out_buffer[..]);
+                    }
+                }
+                else  {
+                    if num_outputs == 1 {
+                        aaunit.borrow().compute_two_one(
+                            frames, 
+                            &in_buffer[..], 
+                            &mut out_buffer[..]);
+                    }
+                    else {
+                        aaunit.borrow().compute_two_two(
+                            frames, 
+                            &in_buffer[..], 
+                            &mut out_buffer[..]);
+                    }
+                }
+                
                 pa::Continue
         };
 
@@ -291,80 +307,85 @@ impl <'a>Standalone<'a> {
     }
 
     /// audio handler for output stream only
-    // fn audio_output_only(
-    //     aaunit: Rc<RefCell<AAUnit>>, 
-    //     output_device: pa::DeviceIndex,
-    //     bundle: Bundle, 
-    //     receive_from_gui: cb::Receiver<Message>, 
-    //     send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
-    //     let pa = pa::PortAudio::new().unwrap();
+    fn audio_zero_x(
+        aaunit: Rc<RefCell<AAUnit>>, 
+        output_device: pa::DeviceIndex,
+        bundle: Bundle, 
+        receive_from_gui: cb::Receiver<Message>, 
+        send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
+        let pa = pa::PortAudio::new().unwrap();
 
-    //     let output_params = pa::stream::Parameters::new(
-    //         output_device, 
-    //         bundle.info.outputs,
-    //         true,
-    //         0.1);
+        let num_outputs = bundle.info.outputs;
 
-    //     let settings = 
-    //         pa::stream::OutputSettings::new(output_params, 44_100.0, 64);        
+        let output_params = pa::stream::Parameters::new(
+            output_device, 
+            num_outputs,
+            true,
+            0.1);
 
-    //     let (send_stop,rec_stop) = channel();
-    //     let callback = move |pa::OutputStreamCallbackArgs {
-    //         buffer, 
-    //         frames, 
-    //         .. }| { 
-    //             // handle any incomming messages from UI
-    //             loop {
-    //                 if let Ok(message) = receive_from_gui.try_recv() {
-    //                     match message.id {
-    //                         MessageID::Param => {
-    //                             Self::set_param(&aaunit.borrow(), message.index, message.value);
-    //                         },
-    //                         MessageID::Control => {},
-    //                         MessageID::ChangeModule 
-    //                             | MessageID::AddInputDevice 
-    //                             | MessageID::AddOutputDevice 
-    //                             | MessageID::Exit => {
-    //                             send_stop.send(Some(message.clone())).unwrap();
-    //                             return pa::Complete;
-    //                         },
-    //                         _ => { }
-    //                     }
-    //                 }
-    //                 else {
-    //                     break;
-    //                 }
-    //             }                                                
+        let settings = 
+            pa::stream::OutputSettings::new(output_params, 44_100.0, 64);        
 
-    //             unsafe { 
-    //                 LEFT_MEMORY_BUFFER = &mut buffer[0];
-    //                 if bundle.info.outputs > 1 {
-    //                     RIGHT_MEMORY_BUFFER = &mut buffer[1];
-    //                 }
-    //             }
+        let (send_stop,rec_stop) = channel();
+        let callback = move |pa::OutputStreamCallbackArgs {
+            buffer, 
+            frames, 
+            .. }| { 
+                // handle any incomming messages from UI
+                loop {
+                    if let Ok(message) = receive_from_gui.try_recv() {
+                        match message.id {
+                            MessageID::Param => {
+                                Self::set_param(&aaunit.borrow(), message.index, message.value);
+                            },
+                            MessageID::Control => {},
+                            MessageID::ChangeModule 
+                                | MessageID::AddInputDevice 
+                                | MessageID::AddOutputDevice 
+                                | MessageID::Exit => {
+                                send_stop.send(Some(message.clone())).unwrap();
+                                return pa::Complete;
+                            },
+                            _ => { }
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                }                                                
 
-    //             aaunit.borrow().compute.call(frames as u32).unwrap();
+                if num_outputs == 1 {
+                    aaunit.borrow().compute_zero_one(
+                        frames,  
+                        &mut buffer[..]);
+                }
+                else {
+                    aaunit.borrow().compute_zero_two(
+                        frames,  
+                        &mut buffer[..]);
+                }
 
-    //             pa::Continue
-    //     };
+                pa::Continue
+        };
 
-    //     let mut stream = pa.open_non_blocking_stream(settings, callback).unwrap();
-    //     stream.start().unwrap();
+        let mut stream = pa.open_non_blocking_stream(settings, callback).unwrap();
+        stream.start().unwrap();
 
-    //     // block until we recieve message to swap module
-    //     match rec_stop.recv() {
-    //         Ok(s) => {
-    //             stream.stop().unwrap();
-    //             s 
-    //         }
-    //         _ => {
-    //             stream.stop().unwrap();
-    //             None
-    //         }
-    //     }
-    // }
+        // block until we recieve message to swap module
+        match rec_stop.recv() {
+            Ok(s) => {
+                stream.stop().unwrap();
+                s 
+            }
+            _ => {
+                stream.stop().unwrap();
+                None
+            }
+        }
+    }
 
-    /// audio handler for either duplex or output only streams
+    /// audio handler for  0:1, 1:1, 0:2, 1:2, 2:2 audio input:outputs
+    /// currently limited to a maximum of stereo in out.
     #[inline]
     fn audio(
         aaunit: Rc<RefCell<AAUnit>>, 
@@ -373,38 +394,39 @@ impl <'a>Standalone<'a> {
         bundle: Bundle, 
         receive_from_gui: cb::Receiver<Message>, 
         send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
-            Self::audio_duplex(aaunit, input_device, output_device, bundle, receive_from_gui, send_from_audio)
-        // if bundle.info.inputs > 0 {
-        //     Self::audio_duplex(aaunit, input_device, output_device, bundle, receive_from_gui, send_from_audio)
-        // }
-        // else {
-        //     Self::audio_output_only(aaunit, output_device, bundle, receive_from_gui, send_from_audio)
-        // }
+        if bundle.info.inputs > 0 && bundle.info.outputs > 0 {
+            Self::audio_x_y(aaunit, input_device, output_device, bundle, receive_from_gui, send_from_audio)
+        }
+        else if bundle.info.outputs > 0 {
+            Self::audio_zero_x(aaunit, output_device, bundle, receive_from_gui, send_from_audio)
+        }
+        else {
+            // TODO: add error! logging
+            None
+        }
     }
 
     /// Take hold of module a run Audio handler and GUI.
     /// The audio handler can be dynanically swapped on module change or input/output audio device change
     pub fn run(self) -> Result<()> {
         let mut gui = self.gui;
-        let aaunit = self.aaunit;
         let mut input_device = self.input_device;
         let mut output_device = self.output_device;
         let url = self.url;
         let receive_from_gui = self.receive_from_gui;
         let send_from_audio = self.send_from_audio;
         let comms = self.comms_sender;
-        let mut bundle = self.bundle;
         let json = self.json;
 
         // create thread to handle all things audio...
         let audio_thread = thread::spawn(move || { 
-            // we have to do this here, to avoid having to handle issues with wasmtime being initalized on the wrong
-            // thread.
+            // we have to do this here, to avoid having to handle issues with wasmtime 
+            // being initalized on the wrong thread.
             let (aaunit, bundle) = Self::create_aaunit(
                 &url, 
                 &json, 
                 send_from_audio.clone()).unwrap();
-            let mut aaunit = Rc::new(RefCell::new(aaunit));
+            let aaunit = Rc::new(RefCell::new(aaunit));
             let mut bundle = bundle.clone();
 
             // audio can quit for a number of reasons:

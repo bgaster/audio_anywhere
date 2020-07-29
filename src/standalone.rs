@@ -1,7 +1,11 @@
+//! 
+//! Wasmer implementation of standalone app
+//! Copyright: Benedict R. Gaster
+//! 
+#![allow(dead_code)]
 
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, Sender};
 use std::thread;
-use std::sync::Arc;
 use std::rc::Rc;
 use std::cell::RefCell;
 
