@@ -1,0 +1,25 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ui</title>
+    
+    
+    <script type="text/javascript" src="./scripts/client.js"></script>
+<script type="text/javascript" src="./scripts/renderer.js"></script>
+<script type="text/javascript" src="./scripts/vector.js"></script>
+
+  </head>
+  <body>
+    <script>
+      const client = new Client()
+      client.install(document.body)
+      window.addEventListener('load', () => { 
+        client.start()
+      })
+    </script>
+  </body>
+</html>

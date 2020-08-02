@@ -170,13 +170,13 @@ impl AAUnit {
     }
 
     #[inline]
-    pub fn get_number_inputs(&self, index: u32) -> i32 {
+    pub fn get_number_inputs(&self) -> i32 {
         let f = self.get_num_inputs.get0::<i32>().unwrap();
         f().unwrap()
     }
 
     #[inline]
-    pub fn get_number_outputs(&self, index: u32) -> i32 {
+    pub fn get_number_outputs(&self) -> i32 {
         let f = self.get_num_outputs.get0::<i32>().unwrap();
         f().unwrap()
     }
