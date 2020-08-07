@@ -1,15 +1,108 @@
-
 #![feature(wasm_target_feature)]
+
+// ALL OF THE FOLLOWING WARNINGS NEED TO BE ADDRESSED IN THE FAUST COMPILER
+#![allow(non_snake_case)]
+#![allow(unused_mut)]
+#![allow(unused_parens)]
+#![allow(non_camel_case_types)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
+// REMOVE SOMETIME SOON :-)
+
+const MAX_PARAM_SIZE: usize = 1024;
+#[no_mangle]
+pub static mut PARAM_NAME: [u8;MAX_PARAM_SIZE] = [65;MAX_PARAM_SIZE];
+
 const MAX_BUFFER_SIZE: usize = 1024;
+
+// Everything following should not be visible to the outside world
+
+#[derive(Clone)]
+struct ParamRange {
+    init: f32,
+    min: f32,
+    max: f32,
+    step: f32,
+}
+
+impl ParamRange {
+    pub fn new(init: f32, min: f32, max: f32, step: f32) -> Self {
+        Self {
+            init,
+            min,
+            max,
+            step,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Param {
+    index: i32,
+    range: ParamRange,
+}
+
+impl Param {
+	pub fn new(name: String, index: i32, range: ParamRange) -> Self {
+		Self {
+            index,
+            range
+		}
+	}
+}
+
+// Notes and voices
+
+type Note = i32;   
+type Pitch = f32;
+
+/// convert midi note to its corresponding frequency
+#[inline]
+fn to_freq(n: i32) -> Pitch {
+    2.0f32.powf( (n - 69) as Pitch / 12.0 ) * 440.0
+}
+
+/// convert midi note to an index within voices range, can then be used as 
+/// sample index, for example.
+#[inline]
+fn to_index(n: i32, voices: u32) -> u32 {
+    (12.0*(to_freq(n) / 130.81).log2()).round().abs() as u32 % voices
+}
+
+#[inline]
+fn freq_to_index(freq: f32, voices: u32) -> u32 {
+    (12.0*(freq / 130.81).log2()).round().abs() as u32 % voices
+}
+
+/// convert midi note to its corresponding frequency, with explicit base tuning
+#[inline]
+fn to_freq_tuning(n:i32, tuning: Pitch) -> Pitch {
+    2.0f32.powf( (n - 69) as f32 / 12.0 ) * tuning
+}
+
+#[derive(Copy, Clone)]
+struct VoiceInfo {
+    pub active: bool,
+    pub note: Note,
+    pub channel: i32,
+	pub voice_age: i64,
+}
+
+impl VoiceInfo {
+	pub fn new() -> VoiceInfo {
+		VoiceInfo {
+			active: false,
+			note: 0,
+			channel: 0,
+			voice_age: 0,
+		}
+	}
+}
+
 #[no_mangle]
 pub static mut IN_BUFFER0: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
 #[no_mangle]
-pub static mut IN_BUFFER1: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
-#[no_mangle]
 pub static mut OUT_BUFFER0: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
-#[no_mangle]
-pub static mut OUT_BUFFER1: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
-
 static mut ENGINE : mydsp = mydsp {
 	fVslider0: 0.0,
 	fRec0: [0.0;2],
@@ -18,10 +111,11 @@ static mut ENGINE : mydsp = mydsp {
 
 type T = f32;
 
-pub struct mydsp {
+struct mydsp {
 	fVslider0: f32,
 	fRec0: [f32;2],
 	fSampleRate: i32,
+
 }
 
 impl mydsp {
@@ -33,6 +127,10 @@ impl mydsp {
 			fSampleRate: 0,
 		}
 	}
+	pub fn get_voices(&self) -> i32 { 
+		0
+	}
+
 	pub fn get_sample_rate(&self) -> i32 {
 		return self.fSampleRate;
 	}
@@ -87,6 +185,19 @@ impl mydsp {
 	pub fn init(&mut self, sample_rate: i32) {
 		mydsp::class_init(sample_rate);
 		self.instance_init(sample_rate);
+		self.init_voices();
+	}
+	pub fn get_param_info(&mut self, name: &str) -> Param {
+		match name {
+			"gain_control" => Param { index: 0, range: ParamRange::new(0.0, -70.0, 4.0, 0.10000000000000001) },
+			
+			_ => Param { index: -1, range: ParamRange::new(0.0, 0.0, 0.0, 0.0)}
+		}
+	}
+	fn init_voices(&mut self) {
+	}
+	pub fn handle_note_on(&mut self, _mn: Note, _vel: f32) {
+	}pub fn handle_note_off(&mut self, _mn: Note, _vel: f32) {
 	}
 	
 	pub fn get_param(&self, param: u32) -> T {
@@ -102,21 +213,14 @@ impl mydsp {
 			_ => {}
 		}
 	}
-	
 	#[target_feature(enable = "simd128")]
-#[inline]
-unsafe fn compute(&mut self, count: i32, inputs: &[&[T]], outputs: &mut[&mut[T]]) {
-		let (inputs0) = if let [inputs0, ..] = inputs {
-			let inputs0 = inputs0[..count as usize].iter();
-			(inputs0)
-		} else {
-			panic!("wrong number of inputs");
-		};
-		let (outputs0) = if let [outputs0, ..] = outputs {
+	#[inline]
+	unsafe fn compute(&mut self, count: i32, inputs: &[&[T];1], outputs: &mut [&mut [T];1]) {
+		let inputs0 = inputs[0][..count as usize].iter();
+		let [outputs0] = outputs;
+		let (outputs0) = {
 			let outputs0 = outputs0[..count as usize].iter_mut();
 			(outputs0)
-		} else {
-			panic!("wrong number of outputs");
 		};
 		let mut fSlow0: f32 = (0.00100000005 * f32::powf(10.0, (0.0500000007 * (self.fVslider0 as f32))));
 		let zipped_iterators = inputs0.zip(outputs0);
@@ -127,18 +231,60 @@ unsafe fn compute(&mut self, count: i32, inputs: &[&[T]], outputs: &mut[&mut[T]]
 		}
 	}
 
-
-        #[inline]
-        pub fn compute_external(&mut self, count: i32) {
-            let (inputs, outputs) = unsafe { 
-                (::std::slice::from_raw_parts(IN_BUFFER0.as_ptr(), count as usize),
-                ::std::slice::from_raw_parts_mut(OUT_BUFFER0.as_mut_ptr(), count as usize)) 
-            };
-            unsafe { self.compute(count, &[inputs], &mut [outputs]); }
-        }
-
+	#[inline]
+	pub fn compute_external(&mut self, count: i32) {
+		let (input0, output0) = unsafe {
+			(::std::slice::from_raw_parts(IN_BUFFER0.as_ptr(), count as usize),
+			::std::slice::from_raw_parts_mut(OUT_BUFFER0.as_mut_ptr(), count as usize))
+		};
+		unsafe { self.compute(count, &[input0], &mut [output0]); }
+	}
 }
 
+#[no_mangle]
+pub fn handle_note_on(mn: i32, vel: f32) {
+    unsafe { ENGINE.handle_note_on(mn, vel); }
+}
+
+#[no_mangle]
+pub fn handle_note_off(mn: i32, vel: f32) {
+    unsafe { ENGINE.handle_note_off(mn, vel); }
+}
+
+#[no_mangle]
+pub fn get_voices() -> i32 {
+    unsafe { ENGINE.get_voices() }
+}
+
+#[no_mangle]
+pub fn get_param_index(length: i32) -> i32 {
+    if length < MAX_PARAM_SIZE as i32 {
+        let mut param = String::new(); 
+        for i in 0..length as usize {
+            let c = unsafe { PARAM_NAME[i] } as char;
+            param.push(c);
+        }
+        return unsafe { ENGINE.get_param_info(&param).index };
+    }
+    else {
+        return -1;
+    }
+}
+
+#[no_mangle]
+pub fn get_gain_index() -> i32 {
+	unsafe { ENGINE.get_param_info("gain").index }
+}
+
+#[no_mangle]
+pub fn get_gate_index() -> i32 {
+	unsafe { ENGINE.get_param_info("gate").index }
+}
+
+#[no_mangle]
+pub fn get_freq_index() -> i32 {
+	unsafe { ENGINE.get_param_info("freq").index }
+}
 
 
 #[no_mangle]
@@ -187,4 +333,3 @@ pub fn get_param_int(index: u32) -> i32 {
 pub fn compute(frames: u32) -> () {
     unsafe { ENGINE.compute_external(frames as i32); }
 }
-    

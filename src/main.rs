@@ -25,6 +25,8 @@ mod comms;
 mod messages;
 mod bundle;
 mod utils;
+mod midi_utils;
+mod midi_device;
 
 #[derive(RustEmbed)]
 #[folder = "$CARGO_MANIFEST_DIR/assets"]

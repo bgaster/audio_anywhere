@@ -21,35 +21,54 @@ function Renderer (client) {
     this.relation = 1.0
     this.sub = 0.0
 
-    this.incParamWave = (v) => {
+    // handle midi control changes
+    this.controlWave = (v) => {
+        this.wave = map(v, 0, 127, 0, 4.0)
+    }
+
+    this.controlSub = (v) => {
+        this.sub = map(v, 0, 127, 0, 1.0)
+    }
+
+    this.controlRelation = (v) => {
+        this.relation = map(v, 0, 127, 0, 3.01)
+    }
+
+    this.controlFilter = (v) => {
+        this.filter = map(v, 0, 127, 0, 1.0)
+    }
+
+    // handle Midi Twister style endless encoders
+    this.incWave = (v) => {
         this.wave = clamp(this.wave + 0.01 * v, 0, 4)
     }
 
-    this.incParamSub = (v) => {
+    this.incSub = (v) => {
         this.sub = clamp(this.sub + 0.01 * v, 0, 1)
     }
 
-    this.incParamRelation = (v) => {
+    this.incRelation = (v) => {
         this.relation = clamp(this.relation + 0.01 * v, 0, 3.01)
     }
 
-    this.incParamFilter = (v) => {
+    this.incFilter = (v) => {
         this.filter = clamp(this.filter + 0.01 * v, 0, 1)
     }
 
-    this.updateParamFilter = function(value) {
+    // handle directly setting params
+    this.updateFilter = function(value) {
         this.filter = value;
     }
 
-    this.updateParamWave = function(value) {
+    this.updateWave = function(value) {
         this.wave = value;
     }
 
-    this.updateParamRelation = function(value) {
+    this.updateRelation = function(value) {
         this.relation = value
     }
 
-    this.updateParamSub = function(value) {
+    this.updateSub = function(value) {
         this.sub = value
     }
 
@@ -524,4 +543,7 @@ function Renderer (client) {
         return p.plus(orgin)
     }
     function radians(d) { return d * (Math.PI/180) }
+    function map(x, in_min, in_max, out_min, out_max) {
+        return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+    }
 }

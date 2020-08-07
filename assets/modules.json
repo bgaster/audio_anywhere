@@ -3,6 +3,7 @@
     "modules": 
         [
             { "name": "Gain", "json_url": "/gain/gain.json"},
+            { "name": "Nuke", "json_url": "/nuke/nuke.json"},
             { "name": "Default", "json_url": "/default/default.json"}
         ]
 }

@@ -1,4 +1,19 @@
 #[no_mangle]
+pub fn handle_note_on(mn: i32, vel: f32) {
+    unsafe { ENGINE.handle_note_on(mn, vel); }
+}
+
+#[no_mangle]
+pub fn handle_note_off(mn: i32, vel: f32) {
+    unsafe { ENGINE.handle_note_off(mn, vel); }
+}
+
+#[no_mangle]
+pub fn get_voices() -> i32 {
+    unsafe { ENGINE.get_voices() }
+}
+
+#[no_mangle]
 pub fn get_param_index(length: i32) -> i32 {
     if length < MAX_PARAM_SIZE as i32 {
         let mut param = String::new(); 

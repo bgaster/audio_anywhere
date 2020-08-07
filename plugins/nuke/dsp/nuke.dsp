@@ -1,15 +1,18 @@
-// An analog style synth with ringmod and hardsync. This contains the code for the OTTO ADSR-envelope (exponential, but with arbitrary attack. Here it is linear.)
-// A TO-DO is to add this to a dedicated faust library instead.
+// An analog style synth with ringmod and hardsync.
+// Based on an earlier Faust synth from OTTO
+
+declare aavoices "2";
 
 import("stdfaust.lib");
 
-process = vgroup("voices", par(n, 6, vgroup("%n", voice))) :> _ ;
+
+process = vgroup("voices", par(n, 2, vgroup("aavoice%n", voice))) :> _ ;
 
 voice = hgroup("midi", ( multi_osc(osc1_freq) , multi_osc(osc2_freq) ) <: mixer :> VCF :  *(envelope) )
 with {
-  midigate	= button ("trigger");
+  midigate	= button ("gate");
   midifreq	= hslider("freq", 440, 20, 1000, 1);
-  midigain	= hslider("velocity", 1, 0, 1, 1/127);
+  midigain	= hslider("gain", 1, 0, 1, 1/127);
 
   // Filter
   flt = hslider("/Filter",0.5, 0, 1, 0.01) : si.smoo;
@@ -57,13 +60,13 @@ with {
 
 
   //ADSR envelope----------------------------
-  envelope = adsre_OTTO(a,d,s,r,midigate)*(midigain);
+  envelope = adsre(a,d,s,r,midigate)*(midigain);
   a = hslider("/v:envelope/Attack", 0.001, 0.001, 4, 0.001);
   d = hslider("/v:envelope/Decay", 0.0, 0.0, 4, 0.001);
   s = hslider("/v:envelope/Sustain", 1.0, 0.0, 1.0, 0.01);
   r = hslider("/v:envelope/Release", 0.0, 0.0, 4.0, 0.01);
 
-  adsre_OTTO(attT60,decT60,susLvl,relT60,gate) = envel
+  adsre(attT60,decT60,susLvl,relT60,gate) = envel
   with {
     ugate = gate>0;
     samps = ugate : +~(*(ugate)); // ramp time in samples

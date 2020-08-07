@@ -22,12 +22,19 @@ use crate::bundle::*;
 extern crate portaudio;
 use portaudio as pa;
 
+use crate::midi_device::*;
+use rimd::{MidiMessage, Status};
+
 /// Wasmtime based Standalone Audio Anytime Application
 pub struct Standalone<'a> {
     /// url used for interface, modules, and the like
     url: String, 
     /// default json
     json: String,
+    /// input/output midi
+    midi: Midi,
+    send_from_midi: cb::Sender<MidiMessage>,
+    receive_from_midi: cb::Receiver<MidiMessage>,
     /// currently selected audio input device
     input_device: pa::DeviceIndex,
     /// currenlty selected audio outut device
@@ -48,12 +55,25 @@ pub struct Standalone<'a> {
 impl <'a>Standalone<'a> {
     pub fn new(url: &str) -> Result<Self> {
        
+        let mut midi = Midi::new();
+        let midi_inputs = midi.get_inputs();
+        println!("{:?}", midi_inputs);
+        
         // Load GUI HTML, index.html is the same for all anywhere modules
         let html = get_string(&[url, "index.html"].join("/")).unwrap(); 
+        let html = &[url, "index.html"].join("/");
+
         let modules = get_string(&[url, "modules.json"].join("/")).unwrap();
         Modules::from_json(&modules).and_then(|modules| {
+            // thread communication channels
+            let (send_from_midi, receive_from_midi) = cb::unbounded();
             let (send_from_gui, receive_from_gui) = cb::unbounded();
             let (send_from_audio, receive_from_audio) = channel();
+
+            // TODO: fix up unwrap()
+            // TODO: Add midi devices to GUI and allows selection
+            //midi.open_input("MPK Mini Mk II".to_string(), send_from_midi.clone()).unwrap();
+            midi.open_input("MidiKeys".to_string(), send_from_midi.clone()).unwrap();
 
             // default module to be loaded on startup
             let json = &modules.default.clone();
@@ -87,6 +107,9 @@ impl <'a>Standalone<'a> {
                         Ok(Self {
                             url: url.to_string(),
                             json: json.to_string(),
+                            midi,
+                            send_from_midi,
+                            receive_from_midi,
                             input_device,
                             output_device,
                             gui,
@@ -207,7 +230,8 @@ impl <'a>Standalone<'a> {
         output_device: pa::DeviceIndex,
         bundle: Bundle, 
         receive_from_gui: cb::Receiver<Message>, 
-        send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
+        receive_from_midi: cb::Receiver<MidiMessage>,
+        send_from_audio: Sender<Message>) -> Option<Message> {
         let pa = pa::PortAudio::new().unwrap();
 
         let num_inputs = bundle.info.inputs;
@@ -235,6 +259,16 @@ impl <'a>Standalone<'a> {
             out_buffer, 
             frames, 
             .. }| { 
+                // handle any incomming messages from MIDI
+                loop {
+                    if let Ok(message) = receive_from_midi.try_recv() {
+                        println!("{:?}", message);
+                    }
+                    else {
+                        break;
+                    }
+                }
+
                 // handle any incomming messages from UI
                 loop {
                     if let Ok(message) = receive_from_gui.try_recv() {
@@ -312,7 +346,8 @@ impl <'a>Standalone<'a> {
         output_device: pa::DeviceIndex,
         bundle: Bundle, 
         receive_from_gui: cb::Receiver<Message>, 
-        send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
+        receive_from_midi: cb::Receiver<MidiMessage>,
+        send_from_audio: Sender<Message>) -> Option<Message> {
         let pa = pa::PortAudio::new().unwrap();
 
         let num_outputs = bundle.info.outputs;
@@ -331,6 +366,38 @@ impl <'a>Standalone<'a> {
             buffer, 
             frames, 
             .. }| { 
+                // handle any incomming messages from MIDI
+                loop {
+                    if let Ok(message) = receive_from_midi.try_recv() {
+                        match message.status() {
+                            Status::NoteOn => {
+                                let note     = message.data(1) as i32;
+                                let velocity = message.data(2) as f32 / 127.0;
+                                aaunit.borrow().handle_note_on(note, velocity);
+                            },
+                            Status::NoteOff => {
+                                let note     = message.data(1) as i32;
+                                let velocity = message.data(2) as f32 / 127.0;
+                                aaunit.borrow().handle_note_off(note, velocity);
+                            },
+                            Status::ControlChange => {
+                                let controller = message.data(1);
+                                let data       = message.data(2);
+                                send_from_audio.send(Message {
+                                    id: MessageID::Control,
+                                    index: 0,
+                                    value: Value::VVU8(vec![controller, data]),
+                                }).unwrap();
+                                //println!("{:?}", message);
+                            },
+                            _ => {},
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                }
+
                 // handle any incomming messages from UI
                 loop {
                     if let Ok(message) = receive_from_gui.try_recv() {
@@ -393,12 +460,19 @@ impl <'a>Standalone<'a> {
         output_device: pa::DeviceIndex,
         bundle: Bundle, 
         receive_from_gui: cb::Receiver<Message>, 
-        send_from_audio: Sender<(u32, Value)>) -> Option<Message> {
+        receive_from_midi: cb::Receiver<MidiMessage>, 
+        send_from_audio: Sender<Message>) -> Option<Message> {
+
+        // initialize the audio module
+        aaunit.borrow().init(44_100.0);
+
+        // handle duplex or output only audio
         if bundle.info.inputs > 0 && bundle.info.outputs > 0 {
-            Self::audio_x_y(aaunit, input_device, output_device, bundle, receive_from_gui, send_from_audio)
+            Self::audio_x_y(
+                aaunit, input_device, output_device, bundle, receive_from_gui, receive_from_midi, send_from_audio)
         }
         else if bundle.info.outputs > 0 {
-            Self::audio_zero_x(aaunit, output_device, bundle, receive_from_gui, send_from_audio)
+            Self::audio_zero_x(aaunit, output_device, bundle, receive_from_gui, receive_from_midi, send_from_audio)
         }
         else {
             // TODO: add error! logging
@@ -417,6 +491,7 @@ impl <'a>Standalone<'a> {
         let send_from_audio = self.send_from_audio;
         let comms = self.comms_sender;
         let json = self.json;
+        let receive_from_midi = self.receive_from_midi;
 
         // create thread to handle all things audio...
         let audio_thread = thread::spawn(move || { 
@@ -439,8 +514,9 @@ impl <'a>Standalone<'a> {
                             input_device,
                             output_device,
                             bundle.clone(), 
-                            receive_from_gui.clone(), 
-                            send_from_audio.clone()) {
+                            receive_from_gui.clone(),
+                            receive_from_midi.clone(),
+                            comms.clone()) {
                 match message.id {
                     // switch input device
                     MessageID::AddInputDevice => {

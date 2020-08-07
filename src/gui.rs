@@ -100,7 +100,7 @@ impl <'a> GUI<'a> {
 
         match web_view::builder()
             .title(title)
-            .content(Content::Html(html))
+            .content(Content::Url(html))
             .size(size.0, size.1)
             .resizable(false)
             .debug(true)
@@ -166,43 +166,54 @@ impl <'a> GUI<'a> {
             }
 
             if self.loaded {
+                let mut msgs_consumed = 0;
                 for m in msgs.iter() {
                     match (*m).id {
                         MessageID::Param => {
                             Self::param_change(&mut self.webview, (*m).index, (*m).value.to_string()).unwrap();
+                            msgs_consumed += 1;
                         }
                         MessageID::Control => {
                             Self::control_change(&mut self.webview, (*m).index, (*m).value.to_string()).unwrap();
+                            msgs_consumed += 1;
                         }
                         MessageID::ChangeModule => {
                             let str = (*m).value.to_string().clone();
                             let args: Vec<&str> = str.split_whitespace().collect();
+                            self.loaded = false;
                             Self::change_module(&mut self.webview, args[0], args[1], args[2]).unwrap();
+                            msgs_consumed += 1;
+                            break;
                         },
                         MessageID::AddInputDevice => {
                             let str = (*m).value.to_string().clone();
                             let args: Vec<&str> = str.split("=").collect();
                             Self::add_input_device(&mut self.webview, args[0], args[1]).unwrap();
+                            msgs_consumed += 1;
                         },
                         MessageID::AddOutputDevice => {
                             let str = (*m).value.to_string().clone();
                             let args: Vec<&str> = str.split("=").collect();
                             Self::add_output_device(&mut self.webview, args[0], args[1]).unwrap();
+                            msgs_consumed += 1;
                         },
                         MessageID::Exit => {
                             // TODO: add Exit message?
+                            msgs_consumed += 1;
                         },
                         MessageID::AddModule => {
                             let str = (*m).value.to_string().clone();
                             let args: Vec<&str> = str.split("=").collect();
                             Self::add_module(&mut self.webview, args[0], args[1]).unwrap();
+                            msgs_consumed += 1;
                         },
                         _ => {
+                            msgs_consumed += 1;
                             // no need to handle loaded
                         }
                     }
                 }
-                msgs.clear();
+                msgs.drain(0..msgs_consumed);
             }
 
             // step the webview

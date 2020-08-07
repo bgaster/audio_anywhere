@@ -18,6 +18,9 @@ vst = { path = "../vst-rs/" }
 curl = { version = "0.4.30"}
 crossbeam-channel = { version = "0.4.3" }
 
+# wasmer-runtime = { version = "0.17.1"}
+# wasmer-runtime-core = { version = "0.17.1" }
+# wasmer-llvm-backend = { version = "0.17.1" } 
 wasmer-runtime = { path = "../wasmer/lib/runtime"}
 wasmer-runtime-core = { path = "../wasmer/lib/runtime-core" }
 wasmer-llvm-backend = { path = "../wasmer/lib/llvm-backend"} 
@@ -27,3 +30,7 @@ wasmtime = { version = "0.19.0" }
 anyhow = { version = "1.0.32" }
 
 portaudio = "0.7.0"
+midir = { path = "./external/midir/"}
+
+[dependencies.rimd]
+git = "https://github.com/RustAudio/rimd.git"

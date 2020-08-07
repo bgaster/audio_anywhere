@@ -36,6 +36,15 @@ pub struct AAUnit {
     memory: Memory,
     /// module init function
     init: Func,
+
+    /// handle note on message
+    handle_note_on: Func,
+    /// handle note off message
+    handle_note_off: Func,
+    /// get number of voices (can be zero)
+    get_voices: Func,
+    /// get parameter index
+    get_param_index : Func,
     /// get current sample rate from WASM
     get_sample_rate: Func,
     /// get number of inputs channels for current module
@@ -77,6 +86,10 @@ impl AAUnit {
         let module = Module::new(store.engine(), wasm_bytes).unwrap();
         let instance = Instance::new(&store, &module, &[]).unwrap();
         let init = instance.get_func("init").unwrap();
+        let handle_note_on = instance.get_func("handle_note_on").unwrap();
+        let handle_note_off = instance.get_func("handle_note_off").unwrap();
+        let get_voices = instance.get_func("get_voices").unwrap();
+        let get_param_index = instance.get_func("get_param_index").unwrap();
         let get_sample_rate: Func = instance.get_func("get_sample_rate").unwrap();
         let get_num_inputs: Func = instance.get_func("get_num_input_channels").unwrap();
         let get_num_outputs: Func = instance.get_func("get_num_output_channels").unwrap();
@@ -114,6 +127,10 @@ impl AAUnit {
             instance,
             memory,
             init,
+            handle_note_on,
+            handle_note_off,
+            get_voices,
+            get_param_index,
             get_sample_rate,
             get_num_inputs,
             get_num_outputs,
@@ -141,6 +158,40 @@ impl AAUnit {
                 0
             }
         })
+    }
+
+    /// initialize module
+    #[inline]
+    pub fn init(&self, sample_rate: f64) {
+        let f = self.init.get1::<f64, ()>().unwrap();
+        f(sample_rate).unwrap();
+    }
+
+    /// send note on message
+    #[inline]
+    pub fn handle_note_on(&self, note: i32, velocity: f32) {
+        let f = self.handle_note_on.get2::<i32, f32, ()>().unwrap();
+        f(note, velocity).unwrap();
+    }
+
+    /// send note off message
+    #[inline]
+    pub fn handle_note_off(&self, note: i32, velocity: f32) {
+        let f = self.handle_note_off.get2::<i32, f32, ()>().unwrap();
+        f(note, velocity).unwrap();
+    }
+
+    // get number of voices
+    #[inline]
+    pub fn get_voices(&self) -> i32 {
+        let f = self.get_voices.get0::<i32>().unwrap();
+        f().unwrap()
+    }
+
+    #[inline]
+    pub fn get_param_index(&self, name: &str) -> i32 {
+        let f = self.get_param_index.get1::<i32,i32>().unwrap();
+        f(0).unwrap()
     }
 
     /// set a float parameter
