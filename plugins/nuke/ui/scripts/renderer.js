@@ -16,26 +16,33 @@ function Renderer (client) {
     this.scale = 1 //window.devicePixelRatio
 
     // params
-    this.filter = 0.5
+    this.filter = 0.1
     this.wave = 3.0
     this.relation = 1.0
     this.sub = 0.0
 
-    // handle midi control changes
     this.controlWave = (v) => {
-        this.wave = map(v, 0, 127, 0, 4.0)
+        let mv = map(v, 0, 127, 0.08, 4.0)
+        this.wave = mv
+        return mv
     }
 
     this.controlSub = (v) => {
-        this.sub = map(v, 0, 127, 0, 1.0)
+        let mv = map(v, 0, 127, 0, 1.0)
+        this.sub = mv
+        return mv
     }
-
+    
     this.controlRelation = (v) => {
-        this.relation = map(v, 0, 127, 0, 3.01)
+        let mv = map(v, 0, 127, 0, 3.01)
+        this.relation = mv
+        return mv 
     }
-
+    
     this.controlFilter = (v) => {
-        this.filter = map(v, 0, 127, 0, 1.0)
+        let mv = map(v, 0, 127, 0, 1.0)
+        this.filter = mv
+        return mv
     }
 
     // handle Midi Twister style endless encoders

@@ -237,6 +237,7 @@
                 // enable module to be able to receive messages
                 var id = document.getElementById("moduleIframe")
                 moduleWindow = getIframeWindow(id)
+
                 // send loaded message to host
                 sendMsg(loaded, 0);
             }
@@ -256,14 +257,17 @@
             // param change message, call loaded module variant
             function OnParamChange(param, value) {
                 if (moduleWindow) {
-                    moduleWindow.OnParamChange(param, value)
+                    moduleWindow.paramChange(param, value)
                 }
             }
     
+
             // control change message, call loaded module variant
             function OnControlChange(ctrlTag, value) {
                 if (moduleWindow) {
-                    moduleWindow.OnControlChange(param, value)
+                    if (moduleWindow.controlChange) {
+                        moduleWindow.controlChange(ctrlTag, value)
+                    }
                 }
             }
 

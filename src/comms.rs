@@ -73,11 +73,11 @@ pub trait Receive {
 //-----------------------------------------------------------------------------
 
 pub struct LocalSend {
-    sender: Sender <Message>,
+    sender: cb::Sender <Message>,
 }
 
 impl LocalSend {
-    pub fn new(sender: Sender <Message>) -> Self {
+    pub fn new(sender: cb::Sender <Message>) -> Self {
         Self {
             sender,
         }

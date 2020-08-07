@@ -1,6 +1,9 @@
 use serde::{Deserialize};
 use serde_repr::{Deserialize_repr};
 
+extern crate crossbeam_channel;
+use crossbeam_channel as cb;
+//use crossbeam_queue::{ArrayQueue, PushError};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::Arc;
 
@@ -36,11 +39,11 @@ type JavascriptCallback = Box<dyn FnMut(&mut web_view::WebView<()>, &str) -> WVR
 
 struct Handler {
     sender: Box<dyn Send>,
-    gui_sender: Sender<Message>,
+    gui_sender: cb::Sender<Message>,
 }
 
 impl Handler  {
-    pub fn new(sender: Box<dyn Send>, gui_sender: Sender<Message>) -> Self {
+    pub fn new(sender: Box<dyn Send>, gui_sender: cb::Sender<Message>) -> Self {
         Self {
             sender,
             gui_sender,
@@ -82,8 +85,9 @@ pub struct GUI<'a> {
     loaded: bool,
     size: (i32,i32),
     is_open: bool,
-    external_sender: Sender<Message>,
-    external_receiver: Receiver<Message>,
+    external_sender: cb::Sender<Message>,
+    external_receiver: cb::Receiver<Message>,
+    //queue: ArrayQueue<Message>,
 }
 
 impl <'a> GUI<'a> {
@@ -94,7 +98,9 @@ impl <'a> GUI<'a> {
         title: &'a str,
         size: (i32,i32)) -> Result<Self, ()> {
 
-        let (external_sender, external_receiver) = channel();
+        let (external_sender, external_receiver) = cb::unbounded();
+
+        //let queue = ArrayQueue::new(1024);
 
         let handler = Handler::new(audio_sender, external_sender.clone());
 
@@ -123,7 +129,7 @@ impl <'a> GUI<'a> {
             }
     }
 
-    pub fn comms_sender(&self) -> Sender<Message> {
+    pub fn comms_sender(&self) -> cb::Sender<Message> {
         self.external_sender.clone()
     }
 
@@ -145,7 +151,6 @@ impl <'a> GUI<'a> {
         let mut msgs = Vec::new();
 
         loop {
-            
             // process any incoming messages
             loop {
                 match self.external_receiver.try_recv() {
@@ -174,7 +179,8 @@ impl <'a> GUI<'a> {
                             msgs_consumed += 1;
                         }
                         MessageID::Control => {
-                            Self::control_change(&mut self.webview, (*m).index, (*m).value.to_string()).unwrap();
+                            //println!("{:?}", (*m).value.to_string());
+                            Self::control_change(&mut self.webview, (*m).index, i32::from((*m).value.clone())).unwrap();
                             msgs_consumed += 1;
                         }
                         MessageID::ChangeModule => {
@@ -270,7 +276,7 @@ impl <'a> GUI<'a> {
         Ok(())
     }
 
-    fn control_change(webview: &mut WebView<()>, ctrl_index: u32, data: String) -> WVResult {
+    fn control_change(webview: &mut WebView<()>, ctrl_index: u32, data: i32) -> WVResult {
         webview.eval(&format!("OnControlChange({},{})", ctrl_index, data)).unwrap();
         Ok(())
     }

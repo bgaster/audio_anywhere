@@ -3,6 +3,13 @@ const paramWave = 1
 const paramRelation = 2
 const paramSub = 3
 
+// Need to add midi learn 
+const controlFilter = 1
+const controlWave = 2
+const controlRelation = 3
+const controlSub = 4
+const controlAttack = 5
+
 function OnParamChange(param, value) {
     if (param == paramFilter) {
         client.renderer.updateFilter(value)
@@ -18,6 +25,17 @@ function OnParamChange(param, value) {
     }
 }
 
-function OnControlChange(ctrlTag, value) {
-    console.log("what the " + value)
+function controlChange(ctrlTag, value) {
+    if (ctrlTag == controlFilter && client) {
+        sendMsg(1, 0, client.renderer.controlFilter(value))
+    }
+    else if (ctrlTag == controlWave && client) {
+        sendMsg(1, 3, client.renderer.controlWave(value))
+    }
+    else if (ctrlTag == controlRelation && client) {
+        sendMsg(1, 1, client.renderer.controlRelation(value))
+    }
+    else if (ctrlTag == controlSub && client) {
+        sendMsg(1, 2, client.renderer.controlSub(value))
+    }
 }

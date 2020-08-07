@@ -15,6 +15,11 @@ const paramFilter = 0
 const paramWave = 1
 const paramRelation = 2
 const paramSub = 3
+const controlFilter = 1
+const controlWave = 2
+const controlRelation = 3
+const controlSub = 4
+const controlAttack = 5
 function OnParamChange(param, value) {
     if (param == paramFilter) {
         client.renderer.updateFilter(value)
@@ -29,8 +34,19 @@ function OnParamChange(param, value) {
         client.renderer.updateSub(value)
     }
 }
-function OnControlChange(ctrlTag, value) {
-    console.log("what the " + value)
+function controlChange(ctrlTag, value) {
+    if (ctrlTag == controlFilter && client) {
+        sendMsg(1, 0, client.renderer.controlFilter(value))
+    }
+    else if (ctrlTag == controlWave && client) {
+        sendMsg(1, 3, client.renderer.controlWave(value))
+    }
+    else if (ctrlTag == controlRelation && client) {
+        sendMsg(1, 1, client.renderer.controlRelation(value))
+    }
+    else if (ctrlTag == controlSub && client) {
+        sendMsg(1, 2, client.renderer.controlSub(value))
+    }
 }
 'use strict'
 function Client () {
@@ -113,21 +129,29 @@ function Renderer (client) {
     this.context = this.el.getContext('2d')
     this.showExtras = true
     this.scale = 1 //window.devicePixelRatio
-    this.filter = 0.5
+    this.filter = 0.1
     this.wave = 3.0
     this.relation = 1.0
     this.sub = 0.0
     this.controlWave = (v) => {
-        this.wave = map(v, 0, 127, 0, 4.0)
+        let mv = map(v, 0, 127, 0.08, 4.0)
+        this.wave = mv
+        return mv
     }
     this.controlSub = (v) => {
-        this.sub = map(v, 0, 127, 0, 1.0)
+        let mv = map(v, 0, 127, 0, 1.0)
+        this.sub = mv
+        return mv
     }
     this.controlRelation = (v) => {
-        this.relation = map(v, 0, 127, 0, 3.01)
+        let mv = map(v, 0, 127, 0, 3.01)
+        this.relation = mv
+        return mv 
     }
     this.controlFilter = (v) => {
-        this.filter = map(v, 0, 127, 0, 1.0)
+        let mv = map(v, 0, 127, 0, 1.0)
+        this.filter = mv
+        return mv
     }
     this.incWave = (v) => {
         this.wave = clamp(this.wave + 0.01 * v, 0, 4)

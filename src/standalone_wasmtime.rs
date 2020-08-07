@@ -49,7 +49,7 @@ pub struct Standalone<'a> {
     send_from_gui: cb::Sender<Message>,
     /// gui comms, for sending messages to GUI
     comms: Box<dyn Send>,
-    comms_sender: Sender<Message>,
+    comms_sender: cb::Sender<Message>,
 }
 
 impl <'a>Standalone<'a> {
@@ -69,11 +69,6 @@ impl <'a>Standalone<'a> {
             let (send_from_midi, receive_from_midi) = cb::unbounded();
             let (send_from_gui, receive_from_gui) = cb::unbounded();
             let (send_from_audio, receive_from_audio) = channel();
-
-            // TODO: fix up unwrap()
-            // TODO: Add midi devices to GUI and allows selection
-            //midi.open_input("MPK Mini Mk II".to_string(), send_from_midi.clone()).unwrap();
-            midi.open_input("MidiKeys".to_string(), send_from_midi.clone()).unwrap();
 
             // default module to be loaded on startup
             let json = &modules.default.clone();
@@ -95,6 +90,14 @@ impl <'a>Standalone<'a> {
 
                         let comms_sender = gui.comms_sender();
                         let comms = gui.comms();
+
+                        // TODO: fix up unwrap()
+                        // TODO: Add midi devices to GUI and allows selection
+                        midi.open_input(
+                            "MPK Mini Mk II".to_string(), 
+                            send_from_midi.clone(),
+                            comms_sender.clone()).unwrap();
+                        //midi.open_input("MidiKeys".to_string(), send_from_midi.clone()).unwrap();
                         
                         // send Modules to GUI
                         Self::send_modules(&comms_sender, &modules.modules);
@@ -125,7 +128,7 @@ impl <'a>Standalone<'a> {
     }
 
     // send a list of input/output audio devices to GUI
-    fn send_audio_devices(comms: &Sender<Message>) {
+    fn send_audio_devices(comms: &cb::Sender<Message>) {
         let pa = pa::PortAudio::new().unwrap();
         for device in pa.devices().unwrap() {
             let (index, info) = device.unwrap();
@@ -141,7 +144,7 @@ impl <'a>Standalone<'a> {
     }
 
     // send a list of params settings, indexed by position in the vector, to GUI
-    fn send_params(comms: &Sender<Message>, params: &Vec<Value>) {
+    fn send_params(comms: &cb::Sender<Message>, params: &Vec<Value>) {
         for (index, p) in params.iter().enumerate() {
             comms.send(Message {
                 id: MessageID::Param,
@@ -152,14 +155,14 @@ impl <'a>Standalone<'a> {
     }
 
     // send a list of modules to GUI
-    fn send_modules(comms: &Sender<Message>, modules: &Vec<Module>) {
+    fn send_modules(comms: &cb::Sender<Message>, modules: &Vec<Module>) {
         for m in modules {
             Self::send_add_module(comms, &m.name, &m.json_url);
         }
     }
 
     // send a message to GUI to add a module to drop down menu
-    fn send_add_module(comms: &Sender<Message>, name: &str, json_url: &str) {
+    fn send_add_module(comms: &cb::Sender<Message>, name: &str, json_url: &str) {
         comms.send(Message {
             id: MessageID::AddModule,
             index: 0,
@@ -168,7 +171,7 @@ impl <'a>Standalone<'a> {
     }
 
     // send a message to GUI to add an input audio device
-    fn send_add_input_device(comms: &Sender<Message>, name: &str, index: pa::DeviceIndex) {
+    fn send_add_input_device(comms: &cb::Sender<Message>, name: &str, index: pa::DeviceIndex) {
         comms.send(Message {
             id: MessageID::AddInputDevice,
             index: 0,
@@ -177,7 +180,7 @@ impl <'a>Standalone<'a> {
     }
 
     // send a message to GUI to add an output audio device
-    fn send_add_output_device(comms: &Sender<Message>, name: &str, index: pa::DeviceIndex) {
+    fn send_add_output_device(comms: &cb::Sender<Message>, name: &str, index: pa::DeviceIndex) {
         comms.send(Message {
             id: MessageID::AddOutputDevice,
             index: 0,
@@ -231,7 +234,7 @@ impl <'a>Standalone<'a> {
         bundle: Bundle, 
         receive_from_gui: cb::Receiver<Message>, 
         receive_from_midi: cb::Receiver<MidiMessage>,
-        send_from_audio: Sender<Message>) -> Option<Message> {
+        send_from_audio: cb::Sender<Message>) -> Option<Message> {
         let pa = pa::PortAudio::new().unwrap();
 
         let num_inputs = bundle.info.inputs;
@@ -347,7 +350,7 @@ impl <'a>Standalone<'a> {
         bundle: Bundle, 
         receive_from_gui: cb::Receiver<Message>, 
         receive_from_midi: cb::Receiver<MidiMessage>,
-        send_from_audio: Sender<Message>) -> Option<Message> {
+        send_from_audio: cb::Sender<Message>) -> Option<Message> {
         let pa = pa::PortAudio::new().unwrap();
 
         let num_outputs = bundle.info.outputs;
@@ -380,16 +383,18 @@ impl <'a>Standalone<'a> {
                                 let velocity = message.data(2) as f32 / 127.0;
                                 aaunit.borrow().handle_note_off(note, velocity);
                             },
-                            Status::ControlChange => {
-                                let controller = message.data(1);
-                                let data       = message.data(2);
-                                send_from_audio.send(Message {
-                                    id: MessageID::Control,
-                                    index: 0,
-                                    value: Value::VVU8(vec![controller, data]),
-                                }).unwrap();
-                                //println!("{:?}", message);
-                            },
+                            // Status::ControlChange => {
+                            //     let controller = message.data(1);
+                            //     let data       = message.data(2);
+                            //     //send_stop.send(Some(message.clone())).unwrap();
+                            //     //println!("{},{}", controller, data);
+                            //     send_from_audio.send(Message {
+                            //         id: MessageID::Control,
+                            //         index: controller as Index,
+                            //         value: Value::VInt(data as i32),
+                            //     }).unwrap();
+                            //     //println!("{:?}", message);
+                            // },
                             _ => {},
                         }
                     }
@@ -461,7 +466,7 @@ impl <'a>Standalone<'a> {
         bundle: Bundle, 
         receive_from_gui: cb::Receiver<Message>, 
         receive_from_midi: cb::Receiver<MidiMessage>, 
-        send_from_audio: Sender<Message>) -> Option<Message> {
+        send_from_audio: cb::Sender<Message>) -> Option<Message> {
 
         // initialize the audio module
         aaunit.borrow().init(44_100.0);

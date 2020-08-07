@@ -63,17 +63,22 @@
         var meterControl = 0;
 
         // Audio Anywhere API functions
-        function OnParamChange(param, value) {
+        function paramChange(param, value) {
             if (param == gainParam) {
                 $('.gainKnob')
-                    .val(value);
+                    .val(value)
+                    .trigger('change')
             }
         }
 
-        function OnControlChange(ctrlTag, value) {
-            if(ctrlTag == meterControl) {
-              document.getElementById("meter").value = value;
-            }
+        function controlChange(ctrlTag, value) {
+            let x = map(value, 0, 127, -70, 4)
+            $('.gainKnob')
+                    .val(x)
+                    .trigger('change')
+            //if(ctrlTag == meterControl) { -->
+            //  document.getElementById("meter").value = value;
+            //}
         }
 
         // callback on load
@@ -109,6 +114,10 @@
                 }
             );
         });
+
+        function map(x, in_min, in_max, out_min, out_max) {
+            return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+        }
         
     </script>
    
