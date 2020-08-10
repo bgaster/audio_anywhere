@@ -8,7 +8,11 @@ const controlFilter = 1
 const controlWave = 2
 const controlRelation = 3
 const controlSub = 4
+
 const controlAttack = 5
+const controlDecay = 6
+const controlSubstain = 7
+const controlRelease = 8
 
 function OnParamChange(param, value) {
     if (param == paramFilter) {
@@ -37,5 +41,17 @@ function controlChange(ctrlTag, value) {
     }
     else if (ctrlTag == controlSub && client) {
         sendMsg(1, 2, client.renderer.controlSub(value))
+    }
+    else if (ctrlTag == controlAttack && client) {
+        sendMsg(1, 4, client.adsr.controlAttack(value))
+    }
+    else if (ctrlTag == controlDecay && client) {
+        sendMsg(1, 5, client.adsr.controlDecay(value))
+    }
+    else if (ctrlTag == controlSubstain && client) {
+        sendMsg(1, 7, client.adsr.controlSubstain(value))
+    }
+    else if (ctrlTag == controlRelease && client) {
+        sendMsg(1, 6, client.adsr.controlRelease(value))
     }
 }

@@ -18,8 +18,9 @@ function Client () {
   this.install = function (host) {
     console.info('Client', 'Installing..')
 
+    this.adsr = new ADSR(this)
     this.renderer = new Renderer(this)
-
+    
     host.appendChild(this.renderer.el);
 
     // host.appendChild(this.renderer.el)
@@ -40,6 +41,7 @@ function Client () {
   this.start = () => {
     console.log('Client', 'Starting..')
 
+    this.adsr.start()
     this.renderer.start()
 
     setInterval(() => { this.renderer.update() }, 33) // redraw at 30hz

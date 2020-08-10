@@ -97,6 +97,10 @@ impl <'a>Standalone<'a> {
                             "MPK Mini Mk II".to_string(), 
                             send_from_midi.clone(),
                             comms_sender.clone()).unwrap();
+                        // midi.open_input(
+                        //     "MidiKeys".to_string(), 
+                        //     send_from_midi.clone(),
+                        //     comms_sender.clone()).unwrap();
                         //midi.open_input("MidiKeys".to_string(), send_from_midi.clone()).unwrap();
                         
                         // send Modules to GUI

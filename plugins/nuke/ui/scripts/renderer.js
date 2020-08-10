@@ -144,6 +144,7 @@ function Renderer (client) {
         this.drawFilter()
         this.drawWave()
         this.drawDial()
+        client.adsr.draw(this.context, vector(300, 0))
     }
 
     this.clear = function () {
