@@ -43,6 +43,14 @@ pub struct AAUnit {
     handle_note_off: Func,
     /// get number of voices (can be zero)
     get_voices: Func,
+    /// get offset for particular input buffer
+    get_input: Func,
+    /// get offset for particular output buffer
+    get_output: Func,
+    /// set offset for particular input buffer
+    set_input: Func,
+    /// set offset for particular output buffer
+    set_output: Func,
     /// get parameter index
     get_param_index : Func,
     /// get current sample rate from WASM
@@ -88,6 +96,10 @@ impl AAUnit {
         let init = instance.get_func("init").unwrap();
         let handle_note_on = instance.get_func("handle_note_on").unwrap();
         let handle_note_off = instance.get_func("handle_note_off").unwrap();
+        let get_input = instance.get_func("get_input").unwrap();
+        let get_output = instance.get_func("get_output").unwrap();
+        let set_input = instance.get_func("set_input").unwrap();
+        let set_output = instance.get_func("set_output").unwrap();
         let get_voices = instance.get_func("get_voices").unwrap();
         let get_param_index = instance.get_func("get_param_index").unwrap();
         let get_sample_rate: Func = instance.get_func("get_sample_rate").unwrap();
@@ -98,7 +110,7 @@ impl AAUnit {
         let get_param_float: Func = instance.get_func("get_param_float").unwrap();
         let get_param_int: Func = instance.get_func("get_param_int").unwrap();
         let compute = instance.get_func("compute").unwrap();
-    
+
         // configure offsets for global audio channel symbols
         let in_buffer0_offset = Self::get_global_symbol_offset(IN_BUFFER0, &instance);
         let in_buffer1_offset = Self::get_global_symbol_offset(IN_BUFFER1, &instance);
@@ -130,6 +142,10 @@ impl AAUnit {
             handle_note_on,
             handle_note_off,
             get_voices,
+            get_input,
+            get_output,
+            set_input,
+            set_output,
             get_param_index,
             get_sample_rate,
             get_num_inputs,

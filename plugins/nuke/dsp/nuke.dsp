@@ -5,7 +5,6 @@ declare aavoices "2";
 
 import("stdfaust.lib");
 
-
 process = vgroup("voices", par(n, 2, vgroup("aavoice%n", voice))) :> _ ;
 
 voice = hgroup("midi", ( multi_osc(osc1_freq) , multi_osc(osc2_freq) ) <: mixer :> VCF :  *(envelope) )

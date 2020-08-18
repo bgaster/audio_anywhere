@@ -93,15 +93,15 @@ impl <'a>Standalone<'a> {
 
                         // TODO: fix up unwrap()
                         // TODO: Add midi devices to GUI and allows selection
-                        midi.open_input(
-                            "MPK Mini Mk II".to_string(), 
-                            send_from_midi.clone(),
-                            comms_sender.clone()).unwrap();
                         // midi.open_input(
-                        //     "MidiKeys".to_string(), 
+                        //     "MPK Mini Mk II".to_string(), 
                         //     send_from_midi.clone(),
                         //     comms_sender.clone()).unwrap();
-                        //midi.open_input("MidiKeys".to_string(), send_from_midi.clone()).unwrap();
+                        midi.open_input(
+                            "MidiKeys".to_string(), 
+                            send_from_midi.clone(),
+                            comms_sender.clone()).unwrap();
+                        // midi.open_input("MidiKeys".to_string(), send_from_midi.clone()).unwrap();
                         
                         // send Modules to GUI
                         Self::send_modules(&comms_sender, &modules.modules);

@@ -1,4 +1,24 @@
 #[no_mangle]
+pub fn get_input(index: u32) -> u32 { 
+    unsafe { ENGINE.get_input(index) }
+}
+
+#[no_mangle]
+pub fn get_output(index: u32) -> u32 { 
+    unsafe { ENGINE.get_output(index) }
+}
+
+#[no_mangle]
+pub fn set_input(index: u32, offset: u32) { 
+    unsafe { ENGINE.set_input(index, offset); };
+}
+
+#[no_mangle]
+pub fn set_output(index: u32, offset: u32) { 
+    unsafe { ENGINE.set_output(index, offset); };
+}
+
+#[no_mangle]
 pub fn handle_note_on(mn: i32, vel: f32) {
     unsafe { ENGINE.handle_note_on(mn, vel); }
 }

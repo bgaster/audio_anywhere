@@ -4,6 +4,7 @@
         [
             { "name": "Gain", "json_url": "/gain/gain.json"},
             { "name": "Nuke", "json_url": "/nuke/nuke.json"},
+            { "name": "VL-1", "json_url": "/vl1/vl1.json"},
             { "name": "Default", "json_url": "/default/default.json"}
         ]
 }

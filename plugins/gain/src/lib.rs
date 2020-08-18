@@ -103,6 +103,8 @@ impl VoiceInfo {
 pub static mut IN_BUFFER0: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
 #[no_mangle]
 pub static mut OUT_BUFFER0: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
+static mut INPUTS: [* const f32;1] = [0 as * const f32; 1];
+static mut OUTPUTS: [* mut f32;1] = [0 as * mut f32; 1];
 static mut ENGINE : mydsp = mydsp {
 	fVslider0: 0.0,
 	fRec0: [0.0;2],
@@ -129,6 +131,22 @@ impl mydsp {
 	}
 	pub fn get_voices(&self) -> i32 { 
 		0
+	}
+
+	pub fn get_input(&self, index: u32) -> u32 { 
+		unsafe { INPUTS[index as usize] as u32 }
+	}
+
+	pub fn get_output(&self, index: u32) -> u32 { 
+		unsafe { OUTPUTS[index as usize] as u32 }
+	}
+
+	pub fn set_input(&self, index: u32, offset: u32) { 
+		unsafe { INPUTS[index as usize] = offset as * const f32; };
+	}
+
+	pub fn set_output(&self, index: u32, offset: u32) { 
+		unsafe { OUTPUTS[index as usize] = offset as * mut f32; };
 	}
 
 	pub fn get_sample_rate(&self) -> i32 {
@@ -168,6 +186,7 @@ impl mydsp {
 	fn class_init(sample_rate: i32) {
 	}
 	fn instance_reset_params(&mut self) {
+		self.fVslider0 = 0.0;
 	}
 	fn instance_clear(&mut self) {
 		for l0 in 0..2 {
@@ -186,6 +205,7 @@ impl mydsp {
 		mydsp::class_init(sample_rate);
 		self.instance_init(sample_rate);
 		self.init_voices();
+		self.init_buffers();
 	}
 	pub fn get_param_info(&mut self, name: &str) -> Param {
 		match name {
@@ -198,6 +218,12 @@ impl mydsp {
 	}
 	pub fn handle_note_on(&mut self, _mn: Note, _vel: f32) {
 	}pub fn handle_note_off(&mut self, _mn: Note, _vel: f32) {
+	}
+	fn init_buffers(&self) {
+		unsafe {
+			INPUTS[0] = IN_BUFFER0.as_ptr();
+			OUTPUTS[0] = OUT_BUFFER0.as_mut_ptr();
+		};
 	}
 	
 	pub fn get_param(&self, param: u32) -> T {
@@ -234,11 +260,31 @@ impl mydsp {
 	#[inline]
 	pub fn compute_external(&mut self, count: i32) {
 		let (input0, output0) = unsafe {
-			(::std::slice::from_raw_parts(IN_BUFFER0.as_ptr(), count as usize),
-			::std::slice::from_raw_parts_mut(OUT_BUFFER0.as_mut_ptr(), count as usize))
+			(::std::slice::from_raw_parts(INPUTS[0], count as usize),
+			::std::slice::from_raw_parts_mut(OUTPUTS[0], count as usize))
 		};
 		unsafe { self.compute(count, &[input0], &mut [output0]); }
 	}
+}
+
+#[no_mangle]
+pub fn get_input(index: u32) -> u32 { 
+    unsafe { ENGINE.get_input(index) }
+}
+
+#[no_mangle]
+pub fn get_output(index: u32) -> u32 { 
+    unsafe { ENGINE.get_output(index) }
+}
+
+#[no_mangle]
+pub fn set_input(index: u32, offset: u32) { 
+    unsafe { ENGINE.set_input(index, offset); };
+}
+
+#[no_mangle]
+pub fn set_output(index: u32, offset: u32) { 
+    unsafe { ENGINE.set_output(index, offset); };
 }
 
 #[no_mangle]

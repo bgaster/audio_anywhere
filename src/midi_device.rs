@@ -65,7 +65,7 @@ impl Midi {
                             move |stamp, message, _| {
                                 //println!("{}: {:?} (len = {})", stamp, message, message.len());
                                 // send control messages to UI
-                                if message[0] & STATUS_MASK  == 0xB0{
+                                if message[0] & STATUS_MASK  == 0xB0 {
                                     let controller = message[1] as Index;
                                     let data       = message[2] as i32;
                                     sender_to_gui.send(Message {

@@ -11,6 +11,24 @@ pub static mut OUT_BUFFER: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
 static mut SAMPLE_RATE: f64 = 0.;
 
 #[no_mangle]
+pub fn handle_note_on(_mn: i32, _vel: f32) {
+}
+
+#[no_mangle]
+pub fn handle_note_off(_mn: i32, _vel: f32) {
+}
+
+#[no_mangle]
+pub fn get_voices() -> i32 {
+    0
+}
+
+#[no_mangle]
+pub fn get_param_index(_length: i32) -> i32 {
+    -1
+}
+
+#[no_mangle]
 pub fn get_sample_rate() -> f64 {
     unsafe { SAMPLE_RATE }
 }
