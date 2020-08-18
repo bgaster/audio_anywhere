@@ -69,15 +69,11 @@ pub struct AAUnit {
     get_param_int: Func,
     /// compute function for module module
     compute: Func,
-    /// offset in WASM linear memory to input buffer 0 (max buffer size 1024)
-    in_buffer0_offset: usize,
-    /// offset in WASM linear memory to input buffer 1 (max buffer size 1024)
-    in_buffer1_offset: usize,
-    /// offset in WASM linear memory to output buffer 0 (max buffer size 1024)
-    out_buffer0_offset: usize,
-    /// offset in WASM linear memory to output buffer 1 (max buffer size 1024)
-    out_buffer1_offset: usize,
-    //out_buffer1_offset: usize,
+    /// input buffer offsets
+    input_offsets: Vec<usize>,
+    /// output buffer offsets
+    output_offsets: Vec<usize>,
+    /// ...
     pub send: Sender<(Index, Value)>,
     //pub outgoing: Sender<Value>,
 }
@@ -110,13 +106,6 @@ impl AAUnit {
         let get_param_float: Func = instance.get_func("get_param_float").unwrap();
         let get_param_int: Func = instance.get_func("get_param_int").unwrap();
         let compute = instance.get_func("compute").unwrap();
-
-        // configure offsets for global audio channel symbols
-        let in_buffer0_offset = Self::get_global_symbol_offset(IN_BUFFER0, &instance);
-        let in_buffer1_offset = Self::get_global_symbol_offset(IN_BUFFER1, &instance);
-        
-        let out_buffer0_offset = Self::get_global_symbol_offset(OUT_BUFFER0, &instance);
-        let out_buffer1_offset = Self::get_global_symbol_offset(OUT_BUFFER1, &instance);
 
         // handle to WASM linear memory
         let memory = instance.get_memory("memory").unwrap();
@@ -155,10 +144,8 @@ impl AAUnit {
             get_param_float,
             get_param_int,
             compute,
-            in_buffer0_offset,
-            in_buffer1_offset,
-            out_buffer0_offset,
-            out_buffer1_offset,
+            input_offsets: Vec::new(),
+            output_offsets: Vec::new(),
             send,
         })
     }
@@ -178,9 +165,26 @@ impl AAUnit {
 
     /// initialize module
     #[inline]
-    pub fn init(&self, sample_rate: f64) {
+    pub fn init(&mut self, sample_rate: f64) {
+        // first initialize WASM module
         let f = self.init.get1::<f64, ()>().unwrap();
         f(sample_rate).unwrap();
+
+        // now setup buffers
+
+        // determine number of inputs
+        let number_inputs = self.get_num_inputs.get0::<i32>().unwrap()().unwrap();
+        let number_outputs = self.get_num_outputs.get0::<i32>().unwrap()().unwrap();
+        
+        // configure inputs
+        for i in 0..number_inputs {
+            self.input_offsets.push(self.get_input.get1::<i32,i32>().unwrap()(i as i32).unwrap() as usize);
+        }
+        
+        // configure outputs
+        for i in 0..number_outputs {
+            self.output_offsets.push(self.get_output.get1::<i32,i32>().unwrap()(i as i32).unwrap() as usize);
+        }
     }
 
     /// send note on message
@@ -255,7 +259,7 @@ impl AAUnit {
         let inputs0 = inputs[0..frames as usize].iter();
         let wasm_inputs0: &mut [f32] = unsafe { 
             let bytes = 
-                &mut self.memory.data_unchecked_mut()[self.in_buffer0_offset..self.in_buffer0_offset 
+                &mut self.memory.data_unchecked_mut()[self.input_offsets[0]..self.input_offsets[0] 
                                                       + (frames*std::mem::size_of::<f32>())];
             std::mem::transmute(bytes)
         };
@@ -273,7 +277,7 @@ impl AAUnit {
         let outputs0 = outputs[0..frames as usize].iter_mut();
         let wasm_outputs0: &[f32] = unsafe { 
             let bytes = 
-                &self.memory.data_unchecked()[self.out_buffer0_offset..self.out_buffer0_offset + 
+                &self.memory.data_unchecked()[self.output_offsets[0]..self.output_offsets[0] + 
                                               (frames*std::mem::size_of::<f32>())];
             std::mem::transmute(bytes)
         };
@@ -292,7 +296,7 @@ impl AAUnit {
         let inputs0 = inputs[0..frames as usize].iter();
         let wasm_inputs0: &mut [f32] = unsafe { 
             let bytes = 
-                &mut self.memory.data_unchecked_mut()[self.in_buffer0_offset..self.in_buffer0_offset 
+                &mut self.memory.data_unchecked_mut()[self.input_offsets[0]..self.input_offsets[0] 
                                                       + (frames*std::mem::size_of::<f32>())];
             std::mem::transmute(bytes)
         };
@@ -311,10 +315,10 @@ impl AAUnit {
         let outputs0 = outputs[0..2 * frames as usize].iter_mut();
         let (wasm_outputs0, wasm_outputs1): (&[f32],&[f32]) = unsafe { 
             let bytes0 = 
-                &self.memory.data_unchecked()[self.out_buffer0_offset..self.out_buffer0_offset + 
+                &self.memory.data_unchecked()[self.output_offsets[0]..self.output_offsets[0] + 
                                               (frames*std::mem::size_of::<f32>())];
             let bytes1 = 
-                &self.memory.data_unchecked()[self.out_buffer1_offset..self.out_buffer1_offset + 
+                &self.memory.data_unchecked()[self.output_offsets[1]..self.output_offsets[1] + 
                                               (frames*std::mem::size_of::<f32>())];
             (std::mem::transmute(bytes0), std::mem::transmute(bytes1))
         };
@@ -338,10 +342,10 @@ impl AAUnit {
         let inputs0 = inputs[0..frames as usize].iter();
         let (wasm_inputs0, wasm_inputs1): (&mut [f32],&mut [f32]) = unsafe { 
             let bytes0 = 
-                &mut self.memory.data_unchecked_mut()[self.in_buffer0_offset..self.in_buffer0_offset 
+                &mut self.memory.data_unchecked_mut()[self.input_offsets[0]..self.input_offsets[0] 
                                                       + (frames*std::mem::size_of::<f32>())];
             let bytes1 = 
-                &mut self.memory.data_unchecked_mut()[self.in_buffer0_offset..self.in_buffer0_offset 
+                &mut self.memory.data_unchecked_mut()[self.input_offsets[1]..self.input_offsets[1] 
                                                       + (frames*std::mem::size_of::<f32>())];
             (std::mem::transmute(bytes0), std::mem::transmute(bytes1))
         };
@@ -364,7 +368,7 @@ impl AAUnit {
         let outputs0 = outputs[0..frames as usize].iter_mut();
         let wasm_outputs0: &[f32] = unsafe { 
             let bytes = 
-                &self.memory.data_unchecked()[self.out_buffer0_offset..self.out_buffer0_offset + 
+                &self.memory.data_unchecked()[self.output_offsets[0]..self.output_offsets[0] + 
                                               (frames*std::mem::size_of::<f32>())];
             std::mem::transmute(bytes)
         };
@@ -384,10 +388,10 @@ impl AAUnit {
         let inputs0 = inputs[0..frames as usize].iter();
         let (wasm_inputs0, wasm_inputs1): (&mut [f32],&mut [f32]) = unsafe { 
             let bytes0 = 
-                &mut self.memory.data_unchecked_mut()[self.in_buffer0_offset..self.in_buffer0_offset 
+                &mut self.memory.data_unchecked_mut()[self.input_offsets[0]..self.input_offsets[0] 
                                                       + (frames*std::mem::size_of::<f32>())];
             let bytes1 = 
-                &mut self.memory.data_unchecked_mut()[self.in_buffer0_offset..self.in_buffer0_offset 
+                &mut self.memory.data_unchecked_mut()[self.input_offsets[1]..self.input_offsets[1] 
                                                       + (frames*std::mem::size_of::<f32>())];
             (std::mem::transmute(bytes0), std::mem::transmute(bytes1))
         };
@@ -411,10 +415,10 @@ impl AAUnit {
         let outputs0 = outputs[0..2 * frames as usize].iter_mut();
         let (wasm_outputs0, wasm_outputs1): (&[f32],&[f32]) = unsafe { 
             let bytes0 = 
-                &self.memory.data_unchecked()[self.out_buffer0_offset..self.out_buffer0_offset + 
+                &self.memory.data_unchecked()[self.output_offsets[0]..self.output_offsets[0] + 
                                               (frames*std::mem::size_of::<f32>())];
             let bytes1 = 
-                &self.memory.data_unchecked()[self.out_buffer1_offset..self.out_buffer1_offset + 
+                &self.memory.data_unchecked()[self.output_offsets[1]..self.output_offsets[1] + 
                                               (frames*std::mem::size_of::<f32>())];
             (std::mem::transmute(bytes0), std::mem::transmute(bytes1))
         };
@@ -445,10 +449,10 @@ impl AAUnit {
         let outputs0 = outputs[0..2 * frames as usize].iter_mut();
         let (wasm_outputs0, wasm_outputs1): (&[f32],&[f32]) = unsafe { 
             let bytes0 = 
-                &self.memory.data_unchecked()[self.out_buffer0_offset..self.out_buffer0_offset + 
+                &self.memory.data_unchecked()[self.output_offsets[0]..self.output_offsets[0] + 
                                               (frames*std::mem::size_of::<f32>())];
             let bytes1 = 
-                &self.memory.data_unchecked()[self.out_buffer1_offset..self.out_buffer1_offset + 
+                &self.memory.data_unchecked()[self.output_offsets[1]..self.output_offsets[1] + 
                                               (frames*std::mem::size_of::<f32>())];
             (std::mem::transmute(bytes0), std::mem::transmute(bytes1))
         };
@@ -476,7 +480,7 @@ impl AAUnit {
         let outputs0 = outputs[0..frames as usize].iter_mut();
         let wasm_outputs0: &[f32] = unsafe { 
             let bytes = 
-                &self.memory.data_unchecked()[self.out_buffer0_offset..self.out_buffer0_offset 
+                &self.memory.data_unchecked()[self.output_offsets[0]..self.output_offsets[0] 
                                               + (frames*std::mem::size_of::<f32>())];
             std::mem::transmute(bytes)
         };

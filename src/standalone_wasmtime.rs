@@ -473,7 +473,7 @@ impl <'a>Standalone<'a> {
         send_from_audio: cb::Sender<Message>) -> Option<Message> {
 
         // initialize the audio module
-        aaunit.borrow().init(44_100.0);
+        aaunit.borrow_mut().init(44_100.0);
 
         // handle duplex or output only audio
         if bundle.info.inputs > 0 && bundle.info.outputs > 0 {
