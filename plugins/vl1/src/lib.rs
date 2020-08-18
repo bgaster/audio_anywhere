@@ -103,7 +103,7 @@ fn mydsp_faustpower2_f(value: f32) -> f32 {
 }
 
 #[no_mangle]
-pub static mut OUT_BUFFER0: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
+static mut OUT_BUFFER0: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
 static mut INPUTS: [* const f32;0] = [0 as * const f32; 0];
 static mut OUTPUTS: [* mut f32;1] = [0 as * mut f32; 1];
 static mut ENGINE : mydsp = mydsp {

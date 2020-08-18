@@ -100,9 +100,9 @@ impl VoiceInfo {
 }
 
 #[no_mangle]
-pub static mut IN_BUFFER0: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
+static mut IN_BUFFER0: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
 #[no_mangle]
-pub static mut OUT_BUFFER0: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
+static mut OUT_BUFFER0: [f32;MAX_BUFFER_SIZE] = [0.;MAX_BUFFER_SIZE];
 static mut INPUTS: [* const f32;1] = [0 as * const f32; 1];
 static mut OUTPUTS: [* mut f32;1] = [0 as * mut f32; 1];
 static mut ENGINE : mydsp = mydsp {
