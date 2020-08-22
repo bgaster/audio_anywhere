@@ -1,18 +1,25 @@
 use curl::easy::Easy;
 
-pub type Result<T> = std::result::Result<T, ()>;
-pub fn err<T>() -> std::result::Result<T,()> {
-    Err(())
+#[derive(Error, Debug)]
+pub enum AAError {
+    #[error("Error Message: {0}")]
+    Message(String),
+    //TODO: add more error types
 }
 
-pub fn ok<T>(t: T) -> Result<T> {
+use anyhow::Result;
+use thiserror::Error;
+
+pub fn mk_err<T>(msg: String) -> Result<T> {
+    Err(AAError::Message(msg))
+}
+
+pub fn mk_ok<T>(t: T) -> Result<T> {
     Ok(t)
 }
 
 pub fn get_string(url: &str) -> Result<String> {
-    get_vec(url).map_or(
-        Err(()),
-        |v| String::from_utf8(v).map_or(Err(()), |s| Ok(s)))
+    String::from_utf8(get_vec(url)?)
 }
 
 pub fn get_vec(url: &str) -> Result<Vec<u8>> {
@@ -21,22 +28,16 @@ pub fn get_vec(url: &str) -> Result<Vec<u8>> {
     let mut data = Vec::new();
     let mut handle = Easy::new();
  
-    if let Err(_) = handle.url(url) {
-        return Err(());
-    }
+    handle.url(url)?;
 
     {    
         let mut transfer = handle.transfer();
-        if let Err(_) = transfer.write_function(|new_data| {
+        transfer.write_function(|new_data| {
             data.extend_from_slice(new_data);
             Ok(new_data.len())
-        }) {
-            return Err(());   
-        }
+        })?;
 
-        if let Err(_) = transfer.perform() {
-            return Err(());
-        }
+        transfer.perform()?;
     }
 
     Ok(data)
