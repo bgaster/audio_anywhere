@@ -26,7 +26,7 @@ wasmer-runtime = { path = "../wasmer/lib/runtime"}
 wasmer-runtime-core = { path = "../wasmer/lib/runtime-core" }
 wasmer-llvm-backend = { path = "../wasmer/lib/llvm-backend"} 
 
-wasmtime = { version = "0.19.0" }
+aa_wasmtime = { path = "../aa_wasmtime/" }
 
 anyhow = { version = "1.0.32" }
 thiserror = { version = "1.0.20" }

@@ -15,7 +15,6 @@ use plugin::*;
 mod audio_anywhere;
 use audio_anywhere::*;
 
-mod audio_anywhere_wasmtime;
 mod standalone_wasmtime;
 
 mod standalone;

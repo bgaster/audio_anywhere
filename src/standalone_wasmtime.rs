@@ -13,7 +13,8 @@ extern crate crossbeam_channel;
 use crossbeam_channel as cb;
 
 use crate::gui::*;
-use crate::audio_anywhere_wasmtime::*;
+//use crate::audio_anywhere_wasmtime::*;
+use aa_wasmtime::*;
 use crate::messages::*;
 use crate::comms::*;
 use crate::utils::*;
@@ -199,9 +200,12 @@ impl <'a>Standalone<'a> {
             Bundle::from_json(&json).and_then(|bundle| {
                 // Load WASM module
                 get_vec(&[url, &bundle.wasm_url].join("")).and_then(|wasm_code| {
-                    AAUnit::new(send_from_audio.clone(), &wasm_code[..]).map(|aaunit| {
-                        (aaunit, bundle)
-                    })
+                    if let Ok(aaunit) = AAUnit::new(&wasm_code[..]) {
+                        Ok((aaunit, bundle))
+                    }
+                    else {
+                        Err(())
+                    }
                 })
             })
         })
@@ -212,10 +216,10 @@ impl <'a>Standalone<'a> {
     fn set_param(aaunit: &AAUnit, index: Index, param: Value) {
         match param {
             Value::VFloat(f) => {
-                aaunit.set_param_float(index, f);
+                let _ = aaunit.set_param_float(index, f);
             },
             Value::VInt(i) => {
-                aaunit.set_param_int(index, i);
+                let _ = aaunit.set_param_int(index, i);
             },
             _ => {
             }
@@ -301,13 +305,13 @@ impl <'a>Standalone<'a> {
 
                 if num_inputs == 1 {
                     if num_outputs == 1 {
-                        aaunit.borrow().compute_one_one(
+                        let _ = aaunit.borrow().compute_one_one(
                             frames, 
                             &in_buffer[..], 
                             &mut out_buffer[..]);
                     }
                     else {
-                        aaunit.borrow().compute_one_two(
+                        let _ = aaunit.borrow().compute_one_two(
                             frames, 
                             &in_buffer[..], 
                             &mut out_buffer[..]);
@@ -315,13 +319,13 @@ impl <'a>Standalone<'a> {
                 }
                 else  {
                     if num_outputs == 1 {
-                        aaunit.borrow().compute_two_one(
+                        let _ = aaunit.borrow().compute_two_one(
                             frames, 
                             &in_buffer[..], 
                             &mut out_buffer[..]);
                     }
                     else {
-                        aaunit.borrow().compute_two_two(
+                        let _ = aaunit.borrow().compute_two_two(
                             frames, 
                             &in_buffer[..], 
                             &mut out_buffer[..]);
@@ -380,12 +384,12 @@ impl <'a>Standalone<'a> {
                             Status::NoteOn => {
                                 let note     = message.data(1) as i32;
                                 let velocity = message.data(2) as f32 / 127.0;
-                                aaunit.borrow().handle_note_on(note, velocity);
+                                let _ = aaunit.borrow().handle_note_on(note, velocity);
                             },
                             Status::NoteOff => {
                                 let note     = message.data(1) as i32;
                                 let velocity = message.data(2) as f32 / 127.0;
-                                aaunit.borrow().handle_note_off(note, velocity);
+                                let _ = aaunit.borrow().handle_note_off(note, velocity);
                             },
                             // Status::ControlChange => {
                             //     let controller = message.data(1);
@@ -431,12 +435,12 @@ impl <'a>Standalone<'a> {
                 }                                                
 
                 if num_outputs == 1 {
-                    aaunit.borrow().compute_zero_one(
+                    let _ = aaunit.borrow().compute_zero_one(
                         frames,  
                         &mut buffer[..]);
                 }
                 else {
-                    aaunit.borrow().compute_zero_two(
+                    let _ = aaunit.borrow().compute_zero_two(
                         frames,  
                         &mut buffer[..]);
                 }
@@ -473,7 +477,7 @@ impl <'a>Standalone<'a> {
         send_from_audio: cb::Sender<Message>) -> Option<Message> {
 
         // initialize the audio module
-        aaunit.borrow_mut().init(44_100.0);
+        let _ = aaunit.borrow_mut().init(44_100.0);
 
         // handle duplex or output only audio
         if bundle.info.inputs > 0 && bundle.info.outputs > 0 {
