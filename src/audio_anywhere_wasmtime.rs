@@ -73,7 +73,7 @@ pub struct AAUnit {
     input_offsets: Vec<usize>,
     /// output buffer offsets
     output_offsets: Vec<usize>,
-    /// ...
+    ///
     pub send: Sender<(Index, Value)>,
     //pub outgoing: Sender<Value>,
 }

@@ -29,6 +29,7 @@ wasmer-llvm-backend = { path = "../wasmer/lib/llvm-backend"}
 wasmtime = { version = "0.19.0" }
 
 anyhow = { version = "1.0.32" }
+thiserror = { version = "1.0.20" }
 
 portaudio = "0.7.0"
 midir = { git = "https://github.com/bgaster/midir"}
