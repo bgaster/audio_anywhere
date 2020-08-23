@@ -28,7 +28,7 @@ fs.writeFileSync('index.html', cleanup(`
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${id}</title>
-    <script src = "/js/support.js"></script>
+    <script src = "../js/support.js"></script>
     <script>
     </script>
   </head>
@@ -61,6 +61,7 @@ fs.writeFileSync('debug.html', `
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${id}</title>
+    <script src = "../js/support.js"></script>
     ${styles.reduce((acc, item) => { return `${acc}<link rel="stylesheet" type="text/css" href="./links/${item}"/>\n` }, '')}
     ${libs.reduce((acc, item) => { return `${acc}<script type="text/javascript" src="./scripts/lib/${item}"></script>\n` }, '')}
     ${scripts.reduce((acc, item) => { return `${acc}<script type="text/javascript" src="./scripts/${item}"></script>\n` }, '')}
